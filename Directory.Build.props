@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <GameDir Condition="'$(GameDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Melvor Idle 2</GameDir>
+    <GameData>$(GameDir)\data_GamesByMalcs.Melvor2_windows_x86_64</GameData>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+</Project>

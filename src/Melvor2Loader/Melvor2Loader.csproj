@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\..\GameRefs.props" />
+
+  <PropertyGroup>
+    <AssemblyName>Melvor2Loader</AssemblyName>
+    <RootNamespace>Melvor2Loader</RootNamespace>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <!-- The loader is locked while the game runs: deploy it with the game closed. -->
+  <Target Name="DeployToGame" AfterTargets="Build" Condition="'$(Deploy)' == 'true'">
+    <MakeDir Directories="$(ModsDir)" />
+    <Copy SourceFiles="$(TargetPath);$(OutDir)$(AssemblyName).pdb;$(OutDir)0Harmony.dll" DestinationFolder="$(ModsDir)" />
+    <Message Importance="high" Text="Deployed $(AssemblyName) + 0Harmony to $(ModsDir)" />
+  </Target>
+</Project>

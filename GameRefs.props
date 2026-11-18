@@ -1,0 +1,26 @@
+<Project>
+  <!--
+    The game runs on .NET 10 but only the .NET 8 SDK is installed, so instead of the net8 reference
+    pack, projects compile against the game's own self-contained (.NET 10) framework assemblies.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>$(NoWarn);CS1701;CS1702;CS1705;MSB3277;CA1416</NoWarn>
+    <DebugType>portable</DebugType>
+    <ModsDir>$(GameDir)\mods</ModsDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Lib.Harmony" Version="2.4.3" />
+    <Reference Include="$(GameData)\System.*.dll" Exclude="$(GameData)\System.*.Native.dll" Private="false" />
+    <Reference Include="$(GameData)\mscorlib.dll" Private="false" />
+    <Reference Include="$(GameData)\netstandard.dll" Private="false" />
+    <Reference Include="$(GameData)\Microsoft.Win32.Primitives.dll" Private="false" />
+    <Reference Include="$(GameData)\GamesByMalcs.Melvor2.dll" Private="false" />
+    <Reference Include="$(GameData)\GodotSharp.dll" Private="false" />
+    <Reference Include="$(GameData)\Serilog.dll" Private="false" />
+  </ItemGroup>
+</Project>
