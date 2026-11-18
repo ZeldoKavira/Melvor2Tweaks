@@ -49,13 +49,16 @@ internal static class DevCommands
                     }
                 }
                 break;
-            case "agility-check":
+            case "guard-check":
             {
                 var game = TimeBank.TimeBank.Game!;
-                game.Entities.TryGetObjectById("MelvorBase:Agility", out var agEntity);
-                if (agEntity?.Components.Values.OfType<GamesByMalcs.Melvor2.Entities.Agility.AgilityActionComponent>().FirstOrDefault() is { } ag)
-                    Plugin.Log(Features.AgilitySafety.Describe(ag));
-                else Plugin.Log("agility-check: no agility component");
+                foreach (string skill in new[] { "MelvorBase:Agility", "MelvorBase:Thieving" })
+                {
+                    game.Entities.TryGetObjectById(skill, out var skillEntity);
+                    if (skillEntity?.Components.Values.OfType<GamesByMalcs.Melvor2.Components.Actions.ActionComponent>().FirstOrDefault() is { } act)
+                        Plugin.Log(Features.DeathGuard.Describe(act));
+                    else Plugin.Log("guard-check: no action component for " + skill);
+                }
                 break;
             }
             case var dd when dd.StartsWith("dropdown:"):
