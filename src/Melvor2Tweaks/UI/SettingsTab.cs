@@ -15,7 +15,7 @@ namespace Melvor2Tweaks.UI;
 ///   - the Game page's frame (inner panel, title tab, scroll, row list)
 ///   - its "Stop Action on Full Bank" row (full-width tick button + bold name + grey description)
 ///   - the Interface page's tooltip-delay SpinBox for number rows
-/// Rows come from the [Setting] attributes on <see cref="Settings"/>, plus a Junk list manager.
+/// Rows come from the [Setting] attributes on <see cref="Settings"/>. Item automation lives in the Items menu (UI/ItemsMenu.cs).
 /// Each application view (cloud menu, main menu, game) has its own SettingsPanel, created fresh on
 /// every mode change, so we hook its _Ready and also attach to panels that exist when hot-loaded.
 /// </summary>
@@ -151,15 +151,9 @@ internal static class SettingsTab
                 list.AddChild(prop.PropertyType == typeof(bool) ? ToggleRow(prop, attr!, kit) : NumberRow(prop, attr!, kit));
         }
 
-        list.AddChild(Header("Junk", kit));
-        var junk = new VBoxContainer();
-        junk.AddThemeConstantOverride("separation", 8);
-        list.AddChild(junk);
-        BuildJunk(junk, kit);
-        JunkSell.ListChanged += () => Callable.From(() =>
-        {
-            if (GodotObject.IsInstanceValid(junk)) BuildJunk(junk, kit);
-        }).CallDeferred();
+        list.AddChild(Header("Items", kit));
+        list.AddChild(Text("Auto-sell, auto-open and auto-bury are set per item in the top bar's Items menu " +
+                           "(or from an item's Sell panel in the bank).", kit.DescStyle));
 
         list.AddChild(Text($"Melvor2Tweaks v{Plugin.Version} - changes apply immediately.", kit.DescStyle));
     }
@@ -244,91 +238,5 @@ internal static class SettingsTab
     {
         prop.SetValue(Settings.Current, value);
         Settings.Save();
-    }
-
-    // ---- junk manager ------------------------------------------------------------------------------
-    private static void BuildJunk(VBoxContainer box, RowKit kit)
-    {
-        foreach (Node c in box.GetChildren()) { box.RemoveChild(c); c.QueueFree(); }
-
-        box.AddChild(Text("Junk items are sold as they drop. Anything above \"Keep\" is sold, including what's in the bank now. " +
-                          "Mark items here or with the checkbox in the bank's Sell panel. Locked items are never sold.", kit.DescStyle));
-
-        if (TimeBank.TimeBank.Game == null)
-        {
-            box.AddChild(Text("Load a save to manage junk items.", kit.DescStyle));
-            return;
-        }
-
-        var status = Text("", kit.DescStyle);
-
-        var add = new HBoxContainer();
-        add.AddThemeConstantOverride("separation", 8);
-        var search = new LineEdit { PlaceholderText = "Item name...", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-        var addButton = TopBar.GameButton("Add");
-        void DoAdd()
-        {
-            var item = JunkSell.FindItem(search.Text);
-            if (item == null) { status.Text = $"No item called \"{search.Text}\"."; return; }
-            int before = JunkSell.InBank(item);
-            JunkSell.SetJunk(item, true); // rebuilds this list
-            Plugin.Log($"Junk manager: added {item.Id} (had {before})");
-        }
-        addButton.Pressed += DoAdd;
-        search.TextSubmitted += _ => DoAdd();
-        add.AddChild(search);
-        add.AddChild(addButton);
-        var sellNow = TopBar.GameButton("Sell excess now");
-        sellNow.CustomMinimumSize = new Vector2(150, 36);
-        sellNow.Pressed += () =>
-        {
-            int sold = JunkSell.SellAllExcess();
-            status.Text = sold > 0 ? $"Sold {sold:N0} item(s)." : "Nothing above the keep amounts.";
-        };
-        add.AddChild(sellNow);
-        box.AddChild(add);
-        box.AddChild(status);
-
-        var items = JunkSell.JunkItems().OrderBy(i => i.DisplayName.Singular).ToList();
-        if (items.Count == 0) { box.AddChild(Text("No junk items yet.", kit.DescStyle)); return; }
-
-        foreach (var item in items)
-        {
-            var row = new HBoxContainer();
-            row.AddThemeConstantOverride("separation", 10);
-            row.AddChild(new TextureRect
-            {
-                Texture = item.Icon,
-                CustomMinimumSize = new Vector2(32, 32),
-                ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-                StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-            });
-            var name = new Label
-            {
-                Text = item.DisplayName.Singular,
-                LabelSettings = kit.NameStyle,
-                AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled,
-                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
-                VerticalAlignment = VerticalAlignment.Center,
-                ClipText = true,
-            };
-            row.AddChild(name);
-            row.AddChild(new Label
-            {
-                Text = $"{JunkSell.InBank(item):N0} in bank   Keep",
-                LabelSettings = kit.DescStyle,
-                AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled,
-                VerticalAlignment = VerticalAlignment.Center,
-            });
-            var keep = NewSpin(kit, 0, 1_000_000_000, 1, JunkSell.Keep(item));
-            var it = item;
-            keep.ValueChanged += v => JunkSell.SetKeep(it, (int)v);
-            row.AddChild(keep);
-            var remove = TopBar.GameButton("Remove");
-            remove.CustomMinimumSize = new Vector2(80, 36);
-            remove.Pressed += () => JunkSell.SetJunk(it, false);
-            row.AddChild(remove);
-            box.AddChild(row);
-        }
     }
 }

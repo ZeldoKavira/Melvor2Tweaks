@@ -10,7 +10,7 @@ namespace Melvor2Tweaks;
 /// </summary>
 public static class Plugin
 {
-    public const string Version = "0.7.0";
+    public const string Version = "0.8.0";
     public const string HarmonyId = "net.zeldo.melvor2tweaks";
 
     private static HarmonyLib.Harmony? s_harmony;
@@ -30,21 +30,23 @@ public static class Plugin
         TimeBank.TimeBank.AttachToRunningGame();
         try { UI.TopBar.AttachToExisting(); } catch (Exception e) { Log("Top bar: " + e); }
         try { UI.ActionsMenu.AttachToExisting(); } catch (Exception e) { Log("Actions menu: " + e); }
+        try { UI.ItemsMenu.AttachToExisting(); } catch (Exception e) { Log("Items menu: " + e); }
         try { Actions.ActionQueue.Rearm(); } catch (Exception e) { Log("Queue rearm: " + e); }
         try { UI.SettingsTab.AttachToExisting(); } catch (Exception e) { Log("Settings tab: " + e); }
         try { UI.FarmingButtons.AttachToExisting(); } catch (Exception e) { Log("Farming buttons: " + e); }
-        try { Features.JunkSell.AttachToExisting(); } catch (Exception e) { Log("Junk UI: " + e); }
+        try { Features.ItemRules.AttachToExisting(); } catch (Exception e) { Log("Item rules: " + e); }
     }
 
     public static void ModUnload()
     {
         try { UI.TopBar.Detach(); } catch (Exception e) { Log("Top bar teardown: " + e.Message); }
         try { UI.ActionsMenu.Detach(); } catch (Exception e) { Log("Actions menu teardown: " + e.Message); }
+        try { UI.ItemsMenu.Detach(); } catch (Exception e) { Log("Items menu teardown: " + e.Message); }
         try { Actions.ActionQueue.Shutdown(); } catch (Exception e) { Log("Queue teardown: " + e.Message); }
         try { Actions.QueueMode.Shutdown(); } catch (Exception e) { Log("Queue mode teardown: " + e.Message); }
         try { UI.SettingsTab.DetachAll(); } catch (Exception e) { Log("Settings tab teardown: " + e.Message); }
         try { UI.FarmingButtons.DetachAll(); } catch (Exception e) { Log("Farming buttons teardown: " + e.Message); }
-        try { Features.JunkSell.DetachAll(); } catch (Exception e) { Log("Junk UI teardown: " + e.Message); }
+        try { Features.ItemRules.DetachAll(); } catch (Exception e) { Log("Item rules teardown: " + e.Message); }
         s_harmony?.UnpatchAll(HarmonyId);
         s_harmony = null;
         TimeBank.TimeBank.State = null;

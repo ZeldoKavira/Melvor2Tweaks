@@ -86,7 +86,10 @@ public sealed class Settings
     [Setting("Interface", "Event log size", "How many entries the event log keeps (game default 100). Takes effect for new entries.", Min = 100, Max = 2000, Step = 50)]
     public int EventLogCap { get; set; } = 500;
 
-    /// <summary>Junk items: item id -> how many to keep in the bank; anything above that is sold.</summary>
+    /// <summary>Item automation: item id -> Sell / Open / Bury everything above a keep minimum.</summary>
+    public System.Collections.Generic.Dictionary<string, Features.ItemRule> ItemRules { get; set; } = new();
+
+    /// <summary>v0.7 junk list (id -> keep); migrated into <see cref="ItemRules"/> as Sell rules on load.</summary>
     public System.Collections.Generic.Dictionary<string, int> Junk { get; set; } = new();
 
     /// <summary>v0.5 junk list (no minimums); migrated into <see cref="Junk"/> on load.</summary>
@@ -100,7 +103,11 @@ public sealed class Settings
     public static string DataDir => Path.Combine(OS.GetUserDataDir(), "Melvor2Tweaks");
     private static string FilePath => Path.Combine(DataDir, "settings.json");
 
-    private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions Json = new()
+    {
+        WriteIndented = true,
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
+    };
 
     public static void Load()
     {
@@ -116,6 +123,9 @@ public sealed class Settings
         }
         foreach (string id in Current.JunkItems) Current.Junk.TryAdd(id, 0);
         Current.JunkItems.Clear();
+        foreach (var (id, keep) in Current.Junk)
+            Current.ItemRules.TryAdd(id, new Features.ItemRule { Action = Features.RuleAction.Sell, Keep = keep });
+        Current.Junk.Clear();
         Save(); // writes defaults for any newly added fields
     }
 

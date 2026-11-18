@@ -48,6 +48,21 @@ internal static class DevCommands
                     }
                 }
                 break;
+            case var r when r.StartsWith("rule-test:"):
+            {
+                // rule-test:<itemId>:<Open|Bury|Sell> - handles exactly one item (keep = count - 1), then turns the rule off.
+                var parts = r.Split(':');
+                string id = parts[1] + ":" + parts[2];
+                var action = Enum.Parse<Features.RuleAction>(parts[3]);
+                var game = TimeBank.TimeBank.Game!;
+                if (!game.Data.TryGetObject<GamesByMalcs.Melvor2.Data.Items.Item>(id, out var item)) { Plugin.Log("rule-test: no item " + id); break; }
+                int before = Features.ItemRules.InBank(item);
+                Features.ItemRules.Set(item, action, Math.Max(0, before - 1));
+                int after = Features.ItemRules.InBank(item);
+                Features.ItemRules.Set(item, Features.RuleAction.Off, 0);
+                Plugin.Log($"rule-test: {action} {id}: {before} -> {after}");
+                break;
+            }
             case "find-hint":
             {
                 // Live nodes showing the game's "?" hint icon: how they're built and how their tooltip attaches.
@@ -92,6 +107,9 @@ internal static class DevCommands
                 break;
             case "toggle-timebank":
                 UI.TopBar.Toggle();
+                break;
+            case "toggle-items":
+                UI.ItemsMenu.Toggle();
                 break;
             case "toggle-actions":
                 UI.ActionsMenu.Toggle();
