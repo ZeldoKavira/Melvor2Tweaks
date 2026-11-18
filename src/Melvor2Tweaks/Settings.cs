@@ -86,7 +86,10 @@ public sealed class Settings
     [Setting("Interface", "Event log size", "How many entries the event log keeps (game default 100). Takes effect for new entries.", Min = 100, Max = 2000, Step = 50)]
     public int EventLogCap { get; set; } = 500;
 
-    /// <summary>Item ids sold automatically when they drop (edited from the bank's sell panel).</summary>
+    /// <summary>Junk items: item id -> how many to keep in the bank; anything above that is sold.</summary>
+    public System.Collections.Generic.Dictionary<string, int> Junk { get; set; } = new();
+
+    /// <summary>v0.5 junk list (no minimums); migrated into <see cref="Junk"/> on load.</summary>
     public System.Collections.Generic.List<string> JunkItems { get; set; } = new();
 
     // -----------------------------------------------------------------------------------------------
@@ -111,6 +114,8 @@ public sealed class Settings
             Plugin.Log("Settings unreadable, using defaults: " + e.Message);
             Current = new Settings();
         }
+        foreach (string id in Current.JunkItems) Current.Junk.TryAdd(id, 0);
+        Current.JunkItems.Clear();
         Save(); // writes defaults for any newly added fields
     }
 

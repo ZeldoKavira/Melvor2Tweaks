@@ -161,6 +161,13 @@ internal static class ActionQueue
     }
 
     // ---- queue editing -----------------------------------------------------------------------------
+    internal static void Add(QueueEntry entry)
+    {
+        if (State is not { } state) return;
+        state.Entries.Add(entry);
+        Save();
+    }
+
     internal static bool AddRunning(StopKind kind, int value, out string reason)
     {
         reason = "";
@@ -274,7 +281,12 @@ internal static class ActionQueue
         {
             var entry = state.Entries[0];
             state.Entries.RemoveAt(0);
-            if (SkillActions.Start(game, entry.Target, out string reason))
+            bool started;
+            string reason;
+            QueueMode.Internal = true; // our own start, not a click to capture
+            try { started = SkillActions.Start(game, entry.Target, out reason); }
+            finally { QueueMode.Internal = false; }
+            if (started)
             {
                 Plugin.Log($"Queue: started {entry.Describe()}");
                 state.Current = entry.Stop == StopKind.None ? null : entry;

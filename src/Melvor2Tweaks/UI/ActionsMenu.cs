@@ -28,6 +28,7 @@ internal static class ActionsMenu
     private static OptionButton? s_kind;
     private static SpinBox? s_value;
     private static CheckBox? s_enabled;
+    private static CheckBox? s_queueMode;
     private static VBoxContainer? s_list;
     private static Label? s_status;
     private static string? s_listSignature;
@@ -91,12 +92,16 @@ internal static class ActionsMenu
         button.AddChild(timer);
 
         ActionQueue.Changed += s_onChanged;
+        QueueMode.PendingRule = () => (Kind, s_value == null ? 0 : (int)s_value.Value);
+        QueueMode.Captured += ShowStatus;
         Refresh();
     }
 
     internal static void Detach()
     {
         ActionQueue.Changed -= s_onChanged;
+        QueueMode.Captured -= ShowStatus;
+        QueueMode.Enabled = false;
         foreach (Node? n in new Node?[] { s_button, s_popup })
         {
             if (!Valid(n)) continue;
@@ -104,7 +109,7 @@ internal static class ActionsMenu
             n.QueueFree();
         }
         s_button = null; s_buttonLabel = null; s_popup = null; s_panel = null; s_current = null; s_rule = null;
-        s_kind = null; s_value = null; s_enabled = null; s_list = null; s_status = null; s_listSignature = null;
+        s_kind = null; s_value = null; s_enabled = null; s_queueMode = null; s_list = null; s_status = null; s_listSignature = null;
     }
 
     private static PanelContainer BuildPanel()
@@ -118,7 +123,28 @@ internal static class ActionsMenu
         body.AddThemeConstantOverride("separation", 8);
         margin.AddChild(body);
 
-        body.AddChild(TopBar.RawLabel("Current action", 18, Gold));
+        // Header: title left; Queue mode + help (?) in the top-right corner.
+        var header = new HBoxContainer();
+        header.AddThemeConstantOverride("separation", 8);
+        header.AddChild(TopBar.RawLabel("Current action", 18, Gold));
+        header.AddChild(new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill });
+        s_queueMode = new CheckBox { Text = "Queue mode", FocusMode = Control.FocusModeEnum.None, AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled };
+        s_queueMode.Toggled += on => { QueueMode.Enabled = on; Refresh(); };
+        UiKit.AddTooltip(s_queueMode, "Queue mode",
+            "While on, clicking any skill's normal Start / Cut / Mine / Fight button adds it to the queue (with the limit below) " +
+            "instead of switching to it. Your current action keeps going.");
+        header.AddChild(s_queueMode);
+        var help = TopBar.GameButton("?");
+        help.CustomMinimumSize = new Vector2(36, 36);
+        UiKit.AddTooltip(help, "How the queue works",
+            "Add to queue: queues the action running now.\n" +
+            "Queue mode: click any skill's normal button to queue it instead; your current action keeps going (its progress bar restarts).\n" +
+            "Limits: \"Until it stops\" runs until the game stops it; \"Until level\" uses each skill's next milestone; \"For N items\" counts products, not side drops.\n" +
+            "When the running action stops by itself - limit reached, out of materials, bank full, no traps - the next queued action starts. " +
+            "Your own Stop does not advance the queue.");
+        header.AddChild(help);
+        body.AddChild(header);
+
         s_current = TopBar.RawLabel("", 15, null);
         body.AddChild(s_current);
         s_rule = TopBar.RawLabel("", 14, new Color(0.6f, 0.9f, 0.6f));
@@ -167,14 +193,6 @@ internal static class ActionsMenu
         s_status.Visible = false;
         s_status.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         body.AddChild(s_status);
-
-        var help = TopBar.RawLabel(
-            "Start an action, then \"Add to queue\" - by default it runs until the game stops it. When the running action stops by itself - " +
-            "limit reached, out of materials, bank full, no traps - the next queued action starts. Your own Stop does not advance the queue.",
-            12, new Color(1, 1, 1, 0.6f));
-        help.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        help.CustomMinimumSize = new Vector2(490, 0);
-        body.AddChild(help);
         return panel;
     }
 
@@ -243,7 +261,8 @@ internal static class ActionsMenu
         if (!Valid(s_button)) return;
         var state = ActionQueue.State;
         int queued = state?.Entries.Count ?? 0;
-        if (Valid(s_buttonLabel)) s_buttonLabel!.Text = queued > 0 ? $"Actions ({queued})" : "Actions";
+        if (Valid(s_buttonLabel)) s_buttonLabel!.Text = QueueMode.Enabled ? $"Queue mode ({queued})" : queued > 0 ? $"Actions ({queued})" : "Actions";
+        if (Valid(s_queueMode)) s_queueMode!.SetPressedNoSignal(QueueMode.Enabled);
         if (!Valid(s_popup) || !s_popup!.Visible) return;
 
         var running = ActionQueue.RunningAction;

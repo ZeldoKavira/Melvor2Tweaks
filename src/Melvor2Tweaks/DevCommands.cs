@@ -48,6 +48,31 @@ internal static class DevCommands
                     }
                 }
                 break;
+            case "scroll-settings-bottom":
+                foreach (var view in FindVisibleTree<VBoxContainer>())
+                {
+                    if (view.Name != "Melvor2TweaksSettingsView") continue;
+                    if (view.FindChildren("*", "ScrollContainer", true, false) is { Count: > 0 } s && s[0] is ScrollContainer sc)
+                        sc.ScrollVertical = (int)sc.GetVScrollBar().MaxValue;
+                }
+                break;
+            case "open-settings-game":
+                foreach (var menu in FindVisibleTree<PauseMenu>()) menu.OpenSettings();
+                break;
+            case "dump-settings":
+                // Node tree of the game's own "Game" settings view, to copy its layout.
+                foreach (var panel in FindVisibleTree<GamesByMalcs.Melvor2.GameMenus.PauseOverlay.SettingsPanel>())
+                {
+                    var view = HarmonyLib.Traverse.Create(panel).Property("GameSettingsView").GetValue<Node>();
+                    if (view == null) continue;
+                    var row = view.FindChild("StopActionOnFullBank", true, false);
+                    if (row != null) Dump(row, 0, 6);
+                    var iface = HarmonyLib.Traverse.Create(panel).Property("InterfaceSettingsView").GetValue<Node>();
+                    var list = iface?.FindChild("VBoxContainer", true, false);
+                    if (list != null) Dump(list, 0, 4);
+                    break;
+                }
+                break;
             case "close-settings":
                 foreach (var menu in FindVisibleTree<PauseMenu>()) menu.Close();
                 break;
@@ -56,6 +81,28 @@ internal static class DevCommands
                 break;
             case "toggle-actions":
                 UI.ActionsMenu.Toggle();
+                break;
+            case "qm-test-woodcutting":
+            {
+                // Same call as clicking a tree's Cut button, with Queue mode on.
+                var game = TimeBank.TimeBank.Game!;
+                game.Entities.TryGetObjectById("MelvorBase:Woodcutting", out var wcEntity);
+                var wc = (GamesByMalcs.Melvor2.Entities.Woodcutting.WoodcuttingActionComponent)wcEntity!.Components["Action"];
+                GamesByMalcs.Melvor2.Entities.Woodcutting.WoodcuttingTree? tree = null;
+                foreach (var t in wc.Trees.Values) if (t.Recipe.Requirements.AreMet) { tree = t; break; }
+                Plugin.Log($"qm-test: running={Actions.ActionQueue.RunningAction?.Entity.Id}, clicking tree {tree?.Recipe.Id}");
+                Actions.QueueMode.Enabled = true;
+                wc.SelectTree(tree!);
+                Callable.From(() =>
+                {
+                    Actions.QueueMode.Enabled = false;
+                    Plugin.Log($"qm-test: after, running={Actions.ActionQueue.RunningAction?.Entity.Id} " +
+                               $"target={Actions.ActionQueue.RunningAction?.CurrentDescription?.Id}, queued={Actions.ActionQueue.State?.Entries.Count}");
+                }).CallDeferred();
+                break;
+            }
+            case "queue-pop-last":
+                if (Actions.ActionQueue.State is { Entries.Count: > 0 } st) Actions.ActionQueue.RemoveAt(st.Entries.Count - 1);
                 break;
             case "next-milestone":
                 if (Actions.ActionQueue.RunningAction is { } running)
@@ -78,6 +125,24 @@ internal static class DevCommands
             default:
                 throw new ArgumentException("unknown command");
         }
+    }
+
+    private static void Dump(Node node, int depth, int maxDepth)
+    {
+        string extra = "";
+        if (node is Control c)
+        {
+            extra += $" size={c.Size} min={c.CustomMinimumSize} var='{c.ThemeTypeVariation}'";
+            if (c.SizeFlagsHorizontal != Control.SizeFlags.Fill) extra += $" h={c.SizeFlagsHorizontal}";
+        }
+        if (node is Label l) extra += $" text='{l.Text}' settings={(l.LabelSettings != null ? l.LabelSettings.ResourcePath : "")}";
+        if (node is BaseButton b) extra += $" btntext='{(b as Button)?.Text}'";
+        if (node is BoxContainer box) extra += $" sep={box.GetThemeConstant("separation")}";
+        if (node is MarginContainer m) extra += $" margins={m.GetThemeConstant("margin_left")},{m.GetThemeConstant("margin_top")}";
+        if (node is PanelContainer p) extra += $" panel={p.GetThemeStylebox("panel")?.GetType().Name}:{p.GetThemeStylebox("panel")?.ResourcePath}";
+        Plugin.Log($"{new string(' ', depth * 2)}{node.GetType().Name} '{node.Name}'{extra} script={(node.GetScript().VariantType != Variant.Type.Nil ? "yes" : "no")}");
+        if (depth >= maxDepth) return;
+        foreach (Node child in node.GetChildren()) Dump(child, depth + 1, maxDepth);
     }
 
     private static IEnumerable<T> FindVisibleTree<T>() where T : Node

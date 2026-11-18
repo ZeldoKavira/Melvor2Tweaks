@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Godot;
 
 namespace Melvor2Tweaks;
@@ -10,7 +10,7 @@ namespace Melvor2Tweaks;
 /// </summary>
 public static class Plugin
 {
-    public const string Version = "0.5.1";
+    public const string Version = "0.7.0";
     public const string HarmonyId = "net.zeldo.melvor2tweaks";
 
     private static HarmonyLib.Harmony? s_harmony;
@@ -41,6 +41,7 @@ public static class Plugin
         try { UI.TopBar.Detach(); } catch (Exception e) { Log("Top bar teardown: " + e.Message); }
         try { UI.ActionsMenu.Detach(); } catch (Exception e) { Log("Actions menu teardown: " + e.Message); }
         try { Actions.ActionQueue.Shutdown(); } catch (Exception e) { Log("Queue teardown: " + e.Message); }
+        try { Actions.QueueMode.Shutdown(); } catch (Exception e) { Log("Queue mode teardown: " + e.Message); }
         try { UI.SettingsTab.DetachAll(); } catch (Exception e) { Log("Settings tab teardown: " + e.Message); }
         try { UI.FarmingButtons.DetachAll(); } catch (Exception e) { Log("Farming buttons teardown: " + e.Message); }
         try { Features.JunkSell.DetachAll(); } catch (Exception e) { Log("Junk UI teardown: " + e.Message); }

@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using GamesByMalcs.Melvor2;
 using GamesByMalcs.Melvor2.Components.Inventories;
@@ -10,28 +12,86 @@ using Item = GamesByMalcs.Melvor2.Data.Items.Item;
 namespace Melvor2Tweaks.Features;
 
 /// <summary>
-/// Junk list: items marked junk (checkbox under the bank's Sell button) are sold as they drop,
-/// through the game's own ItemSaleComponent so sale price, stats and "item found" all stay correct.
-/// Only drops are sold (AddItemFlags.Found), not items moved back into the bank. If the bank is full
-/// and the junk item has no stack yet, it is sold directly instead of being lost.
+/// Junk list: each junk item has a "keep" minimum; anything in the bank above it is sold - right away
+/// when the item is marked or its minimum lowered, and on every drop after that. Sales go through the
+/// game's own ItemSaleComponent, so price, stats and "item found" stay correct. Only drops
+/// (AddItemFlags.Found) trigger sales, not items moved back into the bank; locked items are never sold.
+/// If the bank is full and the item has no stack yet, the drop is sold directly instead of being lost.
+/// Managed from the bank's sell panel (checkbox) and Settings > Melvor2Tweaks > Junk.
 /// </summary>
 internal static class JunkSell
 {
     private const string CheckName = "Melvor2TweaksJunkCheck";
 
-    internal static bool IsJunk(Item item) => Settings.Current.JunkItems.Contains(item.Id);
+    public static event Action? ListChanged;
+
+    internal static bool IsJunk(Item item) => Settings.Current.Junk.ContainsKey(item.Id);
+
+    internal static int Keep(Item item) => Settings.Current.Junk.TryGetValue(item.Id, out int keep) ? keep : 0;
 
     internal static void SetJunk(Item item, bool junk)
     {
-        var list = Settings.Current.JunkItems;
-        if (junk && !list.Contains(item.Id)) list.Add(item.Id);
-        if (!junk) list.Remove(item.Id);
+        var junkMap = Settings.Current.Junk;
+        if (junk) junkMap.TryAdd(item.Id, 0);
+        else junkMap.Remove(item.Id);
         Settings.Save();
         Plugin.Log($"Junk {(junk ? "+" : "-")} {item.Id}");
+        if (junk) SellExcess(item);
+        ListChanged?.Invoke();
+    }
+
+    internal static void SetKeep(Item item, int keep)
+    {
+        if (!IsJunk(item)) return;
+        Settings.Current.Junk[item.Id] = Math.Max(0, keep);
+        Settings.Save();
+        SellExcess(item);
     }
 
     private static BankEntity? Bank =>
         TimeBank.TimeBank.Game is Game g ? Traverse.Create(g).Property("Bank").GetValue<BankEntity>() : null;
+
+    internal static int InBank(Item item) => Bank?.Inventory.GetQuantity(item) ?? 0;
+
+    private static bool IsLocked(BankInventoryComponent bank, Item item) =>
+        Traverse.Create(bank).Property("LockedItems").GetValue() is ICollection<Item> locked && locked.Contains(item);
+
+    /// <summary>Sells whatever is in the bank above the item's keep minimum. Returns the number sold.</summary>
+    internal static int SellExcess(Item item)
+    {
+        if (!IsJunk(item) || Bank is not BankEntity bank || IsLocked(bank.Inventory, item)) return 0;
+        int excess = bank.Inventory.GetQuantity(item) - Keep(item);
+        if (excess <= 0) return 0;
+        bank.ItemSales.SellItem(item, bank.ItemSales.GetItemStats(item), excess);
+        Plugin.Log($"Junk: sold {excess} x {item.Id}");
+        return excess;
+    }
+
+    internal static int SellAllExcess()
+    {
+        int sold = 0;
+        foreach (var item in JunkItems()) sold += SellExcess(item);
+        return sold;
+    }
+
+    internal static IEnumerable<Item> JunkItems()
+    {
+        var game = TimeBank.TimeBank.Game;
+        if (game == null) yield break;
+        foreach (string id in Settings.Current.Junk.Keys.ToList())
+            if (game.Data.TryGetObject<Item>(id, out var item)) yield return item;
+    }
+
+    /// <summary>Finds an item by name: exact match first, then the first name containing the text.</summary>
+    internal static Item? FindItem(string text)
+    {
+        var game = TimeBank.TimeBank.Game;
+        text = text.Trim();
+        if (game == null || text.Length == 0) return null;
+        var all = game.Data.GetDataRegistryOutput<Item>().GetAllObjects().ToList();
+        return all.FirstOrDefault(i => string.Equals(i.DisplayName.Singular, text, StringComparison.OrdinalIgnoreCase))
+               ?? all.FirstOrDefault(i => i.DisplayName.Singular.Contains(text, StringComparison.OrdinalIgnoreCase));
+    }
 
     [HarmonyPatch(typeof(BankInventoryComponent), nameof(BankInventoryComponent.AddQuantity))]
     private static class AddPatch
@@ -39,7 +99,7 @@ internal static class JunkSell
         private static bool Prefix(BankInventoryComponent __instance, Item item, int quantity, AddItemFlags options, ref int __result)
         {
             if (quantity <= 0 || !options.HasFlag(AddItemFlags.Found) || !IsJunk(item)) return true;
-            // No room for a new stack: sell it outright instead of losing it.
+            // No room for a new stack: sell it outright instead of losing it (nothing can be kept anyway).
             if (__instance.GetQuantity(item) <= 0 && __instance.StackCount >= __instance.MaxStacks && Bank is BankEntity bank)
             {
                 var stats = bank.ItemSales.GetItemStats(item);
@@ -53,16 +113,13 @@ internal static class JunkSell
             return true;
         }
 
-        private static void Postfix(BankInventoryComponent __instance, Item item, int quantity, AddItemFlags options, int __result)
+        private static void Postfix(Item item, AddItemFlags options, int __result)
         {
-            if (__result <= 0 || !options.HasFlag(AddItemFlags.Found) || !IsJunk(item)) return;
-            if (Traverse.Create(__instance).Property("LockedItems").GetValue() is ICollection<Item> locked && locked.Contains(item)) return;
-            if (Bank is not BankEntity bank) return;
-            bank.ItemSales.SellItem(item, bank.ItemSales.GetItemStats(item), __result);
+            if (__result > 0 && options.HasFlag(AddItemFlags.Found) && IsJunk(item)) SellExcess(item);
         }
     }
 
-    // ---- UI: checkbox in the bank's sell panel ---------------------------------------------------
+    // ---- bank sell panel checkbox ------------------------------------------------------------------
     private static readonly ConditionalWeakTable<SellItemOptions, StrongBox<Item?>> s_current = new();
 
     [HarmonyPatch(typeof(SellItemOptions), nameof(SellItemOptions._Ready))]
@@ -81,8 +138,16 @@ internal static class JunkSell
         }
     }
 
+    // Stock already above the minimum (e.g. bought, or marked before a game update) is sold when a save opens.
+    [HarmonyPatch(typeof(GamesByMalcs.Melvor2.GameMenus.GameView), nameof(GamesByMalcs.Melvor2.GameMenus.GameView.OnFirstShow))]
+    private static class SaveOpenedPatch
+    {
+        private static void Postfix() => SellAllExcess();
+    }
+
     internal static void AttachToExisting()
     {
+        SellAllExcess();
         foreach (var options in UI.NodeSearch.All<SellItemOptions>())
         {
             Attach(options);
@@ -97,6 +162,7 @@ internal static class JunkSell
 
     internal static void DetachAll()
     {
+        ListChanged = null;
         foreach (var options in UI.NodeSearch.All<SellItemOptions>())
         {
             if (Find(options) is not Node check) continue;
@@ -117,11 +183,13 @@ internal static class JunkSell
         var check = new CheckBox
         {
             Name = CheckName,
-            Text = "Junk: auto-sell when found",
+            Text = "Junk: auto-sell",
             AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled,
             FocusMode = Control.FocusModeEnum.None,
         };
-        UI.UiKit.AddTooltip(check, "Junk", "Sell this item automatically every time it drops (Melvor2Tweaks).");
+        UI.UiKit.AddTooltip(check, "Junk",
+            "Sell this item automatically: what's in the bank now and every future drop. " +
+            "Set a minimum to keep in Settings > Melvor2Tweaks > Junk.");
         check.Toggled += on =>
         {
             if (s_current.TryGetValue(options, out var box) && box.Value != null) SetJunk(box.Value, on);
