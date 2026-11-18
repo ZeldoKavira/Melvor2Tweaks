@@ -57,6 +57,10 @@ internal static class DevCommands
             case "toggle-actions":
                 UI.ActionsMenu.Toggle();
                 break;
+            case "next-milestone":
+                if (Actions.ActionQueue.RunningAction is { } running)
+                    Plugin.Log($"next milestone for {running.Entity.Id}: level {UI.UiKit.NextMilestoneLevel(running.Entity)}");
+                break;
             case "page-back":
                 if (s_previousPage != null)
                     foreach (var view in UI.NodeSearch.All<GamesByMalcs.Melvor2.GameMenus.GameView>()) view.SetCurrentPage(s_previousPage);

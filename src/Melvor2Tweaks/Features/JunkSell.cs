@@ -118,10 +118,10 @@ internal static class JunkSell
         {
             Name = CheckName,
             Text = "Junk: auto-sell when found",
-            TooltipText = "Sell this item automatically every time it drops (Melvor2Tweaks).",
             AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled,
             FocusMode = Control.FocusModeEnum.None,
         };
+        UI.UiKit.AddTooltip(check, "Junk", "Sell this item automatically every time it drops (Melvor2Tweaks).");
         check.Toggled += on =>
         {
             if (s_current.TryGetValue(options, out var box) && box.Value != null) SetJunk(box.Value, on);

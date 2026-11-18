@@ -74,7 +74,7 @@ internal static class TopBar
         button.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
         if (button.FindChildren("*", "TextureRect", true, false) is { Count: > 0 } icons && icons[0] is TextureRect icon)
             icon.Texture = LoadTexture("res://Assets/Items/SandsofTime.png") ?? LoadTexture("res://Assets/Icons/TimeInterval_48.png") ?? icon.Texture;
-        button.TooltipText = "Time Bank: banked offline time. Click to spend it or change game speed.";
+        UiKit.AddTooltip(button, "Time Bank", "Banked offline time. Click to spend it or change game speed.");
         button.Pressed += Toggle;
         category.AddChild(button);
         s_button = button;

@@ -54,12 +54,12 @@ internal static class FarmingButtons
         var b = new Button
         {
             Text = text,
-            TooltipText = tooltip,
             ThemeTypeVariation = "TexturedButton4x",
             CustomMinimumSize = new Vector2(110, 40),
             AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled,
             FocusMode = Control.FocusModeEnum.None,
         };
+        UiKit.AddTooltip(b, null, tooltip);
         b.Pressed += onPressed;
         return b;
     }

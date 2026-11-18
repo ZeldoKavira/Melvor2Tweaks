@@ -25,7 +25,7 @@ public sealed class QueueEntry
     {
         StopKind.Level => $" - until level {StopValue}",
         StopKind.Items => $" - for {StopValue:N0} items",
-        _ => "",
+        _ => " - until it stops",
     };
 }
 

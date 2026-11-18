@@ -82,7 +82,9 @@ internal static class SettingsTab
             SizeFlagsVertical = refView.SizeFlagsVertical,
         };
         refView.GetParent().AddChild(view);
-        BuildRows(view);
+        // The game's own settings toggle, copied without script/signals, so our rows match its size and look.
+        var template = Traverse.Create(refView).Property("StopActionOnBankFull").GetValue<CheckButton>();
+        BuildRows(view, template);
 
         button.Pressed += () =>
         {
@@ -97,7 +99,7 @@ internal static class SettingsTab
         Traverse.Create(panel).Property("GameSettingsView").GetValue<VBoxContainer>()?.GetParent()?.GetNodeOrNull<VBoxContainer>(ViewName);
 
     // ---- rows ------------------------------------------------------------------------------------
-    private static void BuildRows(VBoxContainer view)
+    private static void BuildRows(VBoxContainer view, CheckButton? template)
     {
         var scroll = new ScrollContainer
         {
@@ -122,15 +124,16 @@ internal static class SettingsTab
             header.AddThemeFontSizeOverride("font_size", 20);
             header.AddThemeColorOverride("font_color", new Color(0.98f, 0.8f, 0.3f));
             list.AddChild(header);
-            foreach (var (prop, attr) in group) list.AddChild(BuildRow(prop, attr!));
+            foreach (var (prop, attr) in group) list.AddChild(BuildRow(prop, attr!, template));
             list.AddChild(new HSeparator());
         }
         list.AddChild(RawLabel($"Melvor2Tweaks v{Plugin.Version} - changes apply immediately.", "fs12_medium_green_secondary_label"));
     }
 
-    private static Control BuildRow(PropertyInfo prop, SettingAttribute attr)
+    private static Control BuildRow(PropertyInfo prop, SettingAttribute attr, CheckButton? template)
     {
-        var row = new HBoxContainer { TooltipText = attr.Description };
+        // No hover tooltip: the description is shown under the label (plain tooltips have no background here).
+        var row = new HBoxContainer();
         row.AddThemeConstantOverride("separation", 16);
 
         var text = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
@@ -144,7 +147,13 @@ internal static class SettingsTab
         object? value = prop.GetValue(Settings.Current);
         if (prop.PropertyType == typeof(bool))
         {
-            var check = new CheckButton { ButtonPressed = (bool)value!, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
+            var check = template != null
+                ? (CheckButton)template.Duplicate((int)Node.DuplicateFlags.Groups)
+                : new CheckButton();
+            check.Text = "";
+            check.SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd;
+            check.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+            check.SetPressedNoSignal((bool)value!);
             check.Toggled += on => Set(prop, on);
             row.AddChild(check);
         }

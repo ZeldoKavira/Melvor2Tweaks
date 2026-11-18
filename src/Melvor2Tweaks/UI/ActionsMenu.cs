@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using GamesByMalcs.Melvor2.CustomControls;
 using GamesByMalcs.Melvor2.GameMenus;
 using Godot;
@@ -70,7 +71,7 @@ internal static class ActionsMenu
         if (button.FindChildren("*", "TextureRect", true, false) is { Count: > 0 } icons && icons[0] is TextureRect icon &&
             ResourceLoader.Exists("res://Assets/Icons/TimeInterval_48.png"))
             icon.Texture = GD.Load<Texture2D>("res://Assets/Icons/TimeInterval_48.png");
-        button.TooltipText = "Actions: stop the current action at a level or item count, and queue what to do next.";
+        UiKit.AddTooltip(button, "Actions", "Stop the current action at a level or item count, and queue what to do next.");
         button.Pressed += Toggle;
         category.AddChild(button);
         s_button = button;
@@ -126,11 +127,12 @@ internal static class ActionsMenu
         var ruleRow = new HBoxContainer();
         ruleRow.AddThemeConstantOverride("separation", 6);
         s_kind = new OptionButton { FocusMode = Control.FocusModeEnum.None };
-        s_kind.AddItem("No limit", (int)StopKind.None);
+        s_kind.AddItem("Until it stops", (int)StopKind.None);
         s_kind.AddItem("Until level", (int)StopKind.Level);
         s_kind.AddItem("For N items", (int)StopKind.Items);
-        s_kind.Select(1);
-        s_value = new SpinBox { MinValue = 1, MaxValue = 1_000_000, Value = 10, CustomMinimumSize = new Vector2(120, 0) };
+        s_kind.Select(0);
+        s_value = new SpinBox { MinValue = 1, MaxValue = 1_000_000, Value = 100, CustomMinimumSize = new Vector2(120, 0), Visible = false };
+        s_kind.ItemSelected += _ => SyncValueToKind();
         ruleRow.AddChild(s_kind);
         ruleRow.AddChild(s_value);
         var setRule = TopBar.GameButton("Set on current");
@@ -167,7 +169,7 @@ internal static class ActionsMenu
         body.AddChild(s_status);
 
         var help = TopBar.RawLabel(
-            "Start an action, then \"Add to queue\" (with an optional limit). When the running action stops by itself - " +
+            "Start an action, then \"Add to queue\" - by default it runs until the game stops it. When the running action stops by itself - " +
             "limit reached, out of materials, bank full, no traps - the next queued action starts. Your own Stop does not advance the queue.",
             12, new Color(1, 1, 1, 0.6f));
         help.AutowrapMode = TextServer.AutowrapMode.WordSmart;
@@ -179,6 +181,23 @@ internal static class ActionsMenu
     private static readonly Color Gold = new(0.98f, 0.8f, 0.3f);
 
     private static StopKind Kind => s_kind == null ? StopKind.None : (StopKind)s_kind.GetSelectedId();
+
+    /// <summary>
+    /// "Until it stops" needs no number. "Until level" defaults to the running skill's next milestone
+    /// (never at or below the current level); "For N items" keeps the last count.
+    /// </summary>
+    private static void SyncValueToKind()
+    {
+        if (!Valid(s_value)) return;
+        s_value!.Visible = Kind != StopKind.None;
+        if (Kind != StopKind.Level) { s_value.MinValue = 1; return; }
+        var running = ActionQueue.RunningAction;
+        if (running == null) return;
+        int current = running.Entity.Components.Values
+            .OfType<GamesByMalcs.Melvor2.Components.Experience.ExperienceComponent>().FirstOrDefault()?.Level ?? 0;
+        s_value.MinValue = current + 1;
+        s_value.Value = UiKit.NextMilestoneLevel(running.Entity);
+    }
 
     private static StyleBoxFlat PanelStyle() => new()
     {
@@ -204,6 +223,7 @@ internal static class ActionsMenu
         (s_popup.GetParent() as GameView)?.CloseExclusiveModals();
         ShowStatus("");
         s_listSignature = null;
+        SyncValueToKind(); // the running skill / level may have changed since last time
         Refresh();
         s_popup.Open();
         Callable.From(() =>
@@ -231,11 +251,11 @@ internal static class ActionsMenu
         s_current!.Text = target?.Label ?? "Idle";
 
         var rule = state?.Current;
-        s_rule!.Text = rule == null ? "No limit set" : rule.Stop switch
+        s_rule!.Text = rule == null ? "Runs until it stops" : rule.Stop switch
         {
             StopKind.Level => $"Stops at level {rule.StopValue} (now {ActionQueue.CurrentLevel?.ToString() ?? "?"})",
             StopKind.Items => $"Stops after {rule.StopValue:N0} items ({ActionQueue.ItemProgress:N0} so far)",
-            _ => "No limit set",
+            _ => "Runs until it stops",
         };
         s_enabled!.SetPressedNoSignal(state?.Enabled ?? true);
 
