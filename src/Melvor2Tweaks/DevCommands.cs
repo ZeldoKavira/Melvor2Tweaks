@@ -48,6 +48,22 @@ internal static class DevCommands
                     }
                 }
                 break;
+            case var s when s.StartsWith("items-show:"):
+            {
+                // items-show:<filter 0|1|2>:<search text>
+                var parts = s.Split(':', 3);
+                UI.ItemsMenu.DevSet(parts.Length > 2 ? parts[2] : "", int.Parse(parts[1]));
+                break;
+            }
+            case var bs when bs.StartsWith("bank-select:"):
+            {
+                // bank-select:<itemId> - selects that stack in the current bank tab (bank page must be open)
+                string id = bs.Substring("bank-select:".Length);
+                var tab = Features.ItemRules.Bank!.Inventory.SelectedTab;
+                for (int i = 0; i < tab.Stacks.Count; i++)
+                    if (tab.Stacks[i].Item.Id == id) { tab.SelectItemStackAt(i); break; }
+                break;
+            }
             case var r when r.StartsWith("rule-test:"):
             {
                 // rule-test:<itemId>:<Open|Bury|Sell> - handles exactly one item (keep = count - 1), then turns the rule off.

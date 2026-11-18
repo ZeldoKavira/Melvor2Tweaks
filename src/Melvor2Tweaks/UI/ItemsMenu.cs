@@ -23,7 +23,7 @@ internal static class ItemsMenu
     private const string PopupName = "Melvor2TweaksItemsPopup";
     private const int MaxRows = 80;
 
-    private enum Filter { InBank, WithRule, All }
+    private enum Filter { Mine, WithRule, All }
 
     private static PanelButtonContainer? s_button;
     private static PanelContainerPopup? s_popup;
@@ -128,6 +128,9 @@ internal static class ItemsMenu
         header.AddChild(UiKit.HintIcon("Item automation",
             "Pick Sell, Open or Bury for an item and how many to keep. Everything above that is handled right away, " +
             "on every drop, and whenever you load your save. Opened contents follow their own rules. Locked items are never touched.\n" +
+            "Keep starts at the amount you own, so a new rule changes nothing until you lower it.\n" +
+            "\"Bank & rules\" lists what you own plus every item with a rule; searching there covers every item in the game, " +
+            "so you can set up items you haven't found yet.\n" +
             "Also available from an item's Sell panel in the bank."));
         header.AddChild(new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill });
         var close = TopBar.GameButton("Close");
@@ -137,14 +140,14 @@ internal static class ItemsMenu
 
         var toolbar = new HBoxContainer();
         toolbar.AddThemeConstantOverride("separation", 8);
-        s_search = new LineEdit { PlaceholderText = "Search items...", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, ClearButtonEnabled = true };
+        s_search = new LineEdit { PlaceholderText = "Search any item...", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, ClearButtonEnabled = true };
         s_debounce = new Timer { OneShot = true, WaitTime = 0.25 };
         s_debounce.Timeout += Rebuild;
         s_search.AddChild(s_debounce);
         s_search.TextChanged += _ => s_debounce.Start();
         toolbar.AddChild(s_search);
         s_filter = new OptionButton { FocusMode = Control.FocusModeEnum.None };
-        s_filter.AddItem("In bank", (int)Filter.InBank);
+        s_filter.AddItem("Bank & rules", (int)Filter.Mine);
         s_filter.AddItem("With a rule", (int)Filter.WithRule);
         s_filter.AddItem("All items", (int)Filter.All);
         s_filter.ItemSelected += _ => Rebuild();
@@ -200,6 +203,15 @@ internal static class ItemsMenu
         if (Valid(s_status)) s_status!.Text = text;
     }
 
+    /// <summary>Dev aid: set the search text and filter (0 bank &amp; rules, 1 with a rule, 2 all).</summary>
+    internal static void DevSet(string search, int filter)
+    {
+        if (!Valid(s_search) || !Valid(s_filter)) return;
+        s_filter!.Select(s_filter.GetItemIndex(filter));
+        s_search!.Text = search;
+        Rebuild();
+    }
+
     internal static void Toggle()
     {
         if (!Valid(s_popup)) return;
@@ -218,17 +230,25 @@ internal static class ItemsMenu
         }).CallDeferred();
     }
 
-    private static IEnumerable<Item> Candidates()
+    /// <summary>
+    /// Bank &amp; rules: everything in the bank plus every item with a rule (even at 0 owned); a search there
+    /// covers every item in the game, so items not found yet can be set up in advance.
+    /// </summary>
+    private static IEnumerable<Item> Candidates(string query)
     {
         var game = TimeBank.TimeBank.Game;
         if (game == null) return Array.Empty<Item>();
-        var filter = Valid(s_filter) ? (Filter)s_filter!.GetSelectedId() : Filter.InBank;
+        var filter = Valid(s_filter) ? (Filter)s_filter!.GetSelectedId() : Filter.Mine;
+        var ruled = Settings.Current.ItemRules.Keys
+            .Select(id => game.Data.TryGetObject<Item>(id, out var i) ? i : null).OfType<Item>();
+        IEnumerable<Item> all = game.Data.GetDataRegistryOutput<Item>().GetAllObjects();
+        IEnumerable<Item> owned = ItemRules.Bank?.Inventory.Stacks.Select(s => s.Item) ?? Array.Empty<Item>();
         return filter switch
         {
-            Filter.InBank => (ItemRules.Bank?.Inventory.Stacks.Select(s => s.Item) ?? Array.Empty<Item>()).Distinct(),
-            Filter.WithRule => Settings.Current.ItemRules.Keys
-                .Select(id => game.Data.TryGetObject<Item>(id, out var i) ? i : null).OfType<Item>(),
-            _ => game.Data.GetDataRegistryOutput<Item>().GetAllObjects(),
+            Filter.Mine when query.Length > 0 => all,
+            Filter.Mine => owned.Concat(ruled).Distinct(),
+            Filter.WithRule => ruled,
+            _ => all,
         };
     }
 
@@ -238,9 +258,10 @@ internal static class ItemsMenu
         foreach (Node c in s_rows!.GetChildren()) { s_rows.RemoveChild(c); c.QueueFree(); }
 
         string q = s_search?.Text.Trim() ?? "";
-        var matches = Candidates()
+        var matches = Candidates(q)
             .Where(i => q.Length == 0 || i.DisplayName.Singular.Contains(q, StringComparison.OrdinalIgnoreCase))
             .OrderBy(i => ItemRules.Get(i) == null) // configured first
+            .ThenBy(i => ItemRules.InBank(i) <= 0)  // then owned
             .ThenBy(i => i.DisplayName.Singular)
             .ToList();
 
@@ -290,9 +311,9 @@ internal static class ItemsMenu
             MinValue = 0, MaxValue = 1_000_000_000, Step = 1,
             CustomMinimumSize = new Vector2(130, 0),
             SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
-            Editable = rule != null,
         };
-        keep.SetValueNoSignal(rule?.Keep ?? 0);
+        // Without a rule, Keep starts at what's owned now: picking an action then touches nothing until Keep is lowered.
+        keep.SetValueNoSignal(rule?.Keep ?? ItemRules.InBank(item));
         row.AddChild(keep);
 
         void Changed()
@@ -300,13 +321,22 @@ internal static class ItemsMenu
             var action = (RuleAction)picker.GetItemId(picker.Selected);
             int before = ItemRules.InBank(item);
             ItemRules.Set(item, action, (int)keep.Value);
-            keep.Editable = action != RuleAction.Off;
             int after = ItemRules.InBank(item);
             count.Text = after.ToString("N0");
             if (before != after) SetStatus($"{action}: {before - after:N0} x {item.DisplayName.Singular}");
         }
-        picker.ItemSelected += _ => Changed();
-        keep.ValueChanged += _ => Changed();
+        bool prefilled = rule == null; // Keep still shows the owned count from when the row was built
+        picker.ItemSelected += _ =>
+        {
+            if (prefilled) keep.SetValueNoSignal(ItemRules.InBank(item));
+            prefilled = false;
+            Changed();
+        };
+        keep.ValueChanged += _ =>
+        {
+            prefilled = false;
+            if (picker.GetItemId(picker.Selected) != (int)RuleAction.Off) Changed();
+        };
         return row;
     }
 }

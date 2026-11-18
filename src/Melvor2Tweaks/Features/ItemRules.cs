@@ -196,35 +196,75 @@ internal static class ItemRules
         }
     }
 
-    private static Node? FindPicker(SellItemOptions options) =>
-        Traverse.Create(options).Property("SellButton").GetValue<Control>()?.GetParent()?.GetNodeOrNull(PickerName);
+    private static Node? FindPicker(SellItemOptions options) => options.FindChild(PickerName, recursive: true, owned: false);
 
     private static void Bind(SellItemOptions options, Item item)
     {
         s_current.GetOrCreateValue(options).Value = item;
-        if (FindPicker(options) is not OptionButton picker) return;
+        if (FindPicker(options) is not Node line) return;
+        var picker = line.GetNode<OptionButton>("Action");
+        var keep = line.GetNode<SpinBox>("Keep");
         picker.Clear();
         foreach (var action in ActionsFor(item)) picker.AddItem(action == RuleAction.Off ? "Auto: off" : $"Auto-{action.ToString().ToLowerInvariant()}", (int)action);
-        picker.Select(picker.GetItemIndex((int)(Get(item)?.Action ?? RuleAction.Off)));
+        var rule = Get(item);
+        picker.Select(picker.GetItemIndex((int)(rule?.Action ?? RuleAction.Off)));
+        // No rule yet: Keep starts at what's owned, so picking an action alone never empties the stack.
+        keep.SetValueNoSignal(rule?.Keep ?? InBank(item));
+        keep.SetMeta(UntouchedMeta, rule == null);
     }
+
+    // Set while Keep still shows the owned-count prefill; drops can raise the count before an action is picked.
+    private const string UntouchedMeta = "melvor2tweaks_untouched";
 
     private static void AttachPicker(SellItemOptions options)
     {
+        if (FindPicker(options) != null) return;
         var sell = Traverse.Create(options).Property("SellButton").GetValue<Control>();
-        var parent = sell?.GetParent();
-        if (parent == null || parent.GetNodeOrNull(PickerName) != null) return;
+        if (sell?.GetParent() is not Control sellRow) return;
+        // Own line under the Sell row when it sits in a vertical list, else beside the Sell button.
+        var parent = sellRow.GetParent() is VBoxContainer column ? column : (Node)sellRow;
+        var after = parent == sellRow ? sell : sellRow;
 
-        var picker = new OptionButton { Name = PickerName, FocusMode = Control.FocusModeEnum.None };
+        var line = new HBoxContainer { Name = PickerName };
+        line.AddThemeConstantOverride("separation", 8);
+
+        var picker = new OptionButton { Name = "Action", FocusMode = Control.FocusModeEnum.None, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         UI.UiKit.AddTooltip(picker, "Item automation",
-            "Sell, open or bury this item automatically: what's in the bank now and every future drop. " +
-            "Set how many to keep, and manage every item, in the top bar's Items menu.");
+            "Sell, open or bury this item automatically above the Keep amount: what's in the bank now and every future drop. " +
+            "Every item can be managed in the top bar's Items menu.");
+        line.AddChild(picker);
+
+        var keepLabel = UI.TopBar.RawLabel("Keep", 14, null);
+        keepLabel.VerticalAlignment = VerticalAlignment.Center;
+        line.AddChild(keepLabel);
+
+        // The game's own quantity box from this panel, for the native look.
+        var template = Traverse.Create(Traverse.Create(options).Property("QuantityOptions").GetValue())
+            .Property("QuantitySpinbox").GetValue<SpinBox>();
+        var keep = template != null ? (SpinBox)template.Duplicate((int)Node.DuplicateFlags.Groups) : new SpinBox();
+        keep.Name = "Keep";
+        keep.MinValue = 0; keep.MaxValue = 1_000_000_000; keep.Step = 1;
+        keep.AllowGreater = false; keep.AllowLesser = false;
+        keep.Prefix = ""; keep.Suffix = "";
+        keep.SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd;
+        keep.CustomMinimumSize = new Vector2(Math.Max(keep.CustomMinimumSize.X, 110), keep.CustomMinimumSize.Y);
+        UI.UiKit.AddTooltip(keep, "Keep", "How many to leave in the bank. Starts at what you own now; lower it to let the rule handle the rest.");
+        line.AddChild(keep);
+
         picker.ItemSelected += index =>
         {
             if (!s_current.TryGetValue(options, out var box) || box.Value == null) return;
-            var action = (RuleAction)picker.GetItemId((int)index);
-            Set(box.Value, action, Get(box.Value)?.Keep ?? 0);
+            if (keep.GetMeta(UntouchedMeta, false).AsBool()) keep.SetValueNoSignal(InBank(box.Value));
+            keep.SetMeta(UntouchedMeta, false);
+            Set(box.Value, (RuleAction)picker.GetItemId((int)index), (int)keep.Value);
         };
-        parent.AddChild(picker);
-        parent.MoveChild(picker, sell!.GetIndex() + 1);
+        keep.ValueChanged += value =>
+        {
+            if (!s_current.TryGetValue(options, out var box) || box.Value == null) return;
+            keep.SetMeta(UntouchedMeta, false);
+            if (Get(box.Value) is { } rule) Set(box.Value, rule.Action, (int)value); // no rule yet: just staged
+        };
+        parent.AddChild(line);
+        parent.MoveChild(line, after.GetIndex() + 1);
     }
 }
