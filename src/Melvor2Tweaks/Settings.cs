@@ -86,6 +86,9 @@ public sealed class Settings
     [Setting("Interface", "Event log size", "How many entries the event log keeps (game default 100). Takes effect for new entries.", Min = 100, Max = 2000, Step = 50)]
     public int EventLogCap { get; set; } = 500;
 
+    [Setting("Interface", "Double-click to equip", "Double-click equipment in the bank to equip it (into a free slot when there is one; ammo equips the whole stack).")]
+    public bool BankDoubleClickEquip { get; set; } = true;
+
     /// <summary>Item automation: item id -> Sell / Open / Bury everything above a keep minimum.</summary>
     public System.Collections.Generic.Dictionary<string, Features.ItemRule> ItemRules { get; set; } = new();
 

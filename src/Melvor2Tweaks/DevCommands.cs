@@ -64,6 +64,13 @@ internal static class DevCommands
                     if (tab.Stacks[i].Item.Id == id) { tab.SelectItemStackAt(i); break; }
                 break;
             }
+            case var dc when dc.StartsWith("dc-dry:"):
+            {
+                string id = dc.Substring("dc-dry:".Length);
+                foreach (var dcStack in Features.ItemRules.Bank!.Inventory.SelectedTab.Stacks)
+                    if (id == "all" || dcStack.Item.Id == id) Features.BankDoubleClick.Equip(dcStack, dryRun: true);
+                break;
+            }
             case var r when r.StartsWith("rule-test:"):
             {
                 // rule-test:<itemId>:<Open|Bury|Sell> - handles exactly one item (keep = count - 1), then turns the rule off.
