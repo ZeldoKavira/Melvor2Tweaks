@@ -15,6 +15,9 @@ namespace Melvor2Tweaks.Features;
 
 public enum RuleAction { Off, Sell, Open, Bury }
 
+/// <summary>What Keep starts at for an item that has no rule yet.</summary>
+public enum KeepDefault { Zero, One, AllButOne, All }
+
 public sealed class ItemRule
 {
     public RuleAction Action { get; set; }
@@ -61,6 +64,15 @@ internal static class ItemRules
         TimeBank.TimeBank.Game is Game g ? Traverse.Create(g).Property("Bank").GetValue<BankEntity>() : null;
 
     internal static int InBank(Item item) => Bank?.Inventory.GetQuantity(item) ?? 0;
+
+    /// <summary>Keep amount offered for an item without a rule (setting "Default Keep for new rules").</summary>
+    internal static int DefaultKeep(Item item) => Settings.Current.NewRuleKeep switch
+    {
+        KeepDefault.One => 1,
+        KeepDefault.AllButOne => Math.Max(0, InBank(item) - 1),
+        KeepDefault.All => InBank(item),
+        _ => 0,
+    };
 
     private static bool IsLocked(BankInventoryComponent bank, Item item) =>
         Traverse.Create(bank).Property("LockedItems").GetValue() is ICollection<Item> locked && locked.Contains(item);
@@ -208,8 +220,8 @@ internal static class ItemRules
         foreach (var action in ActionsFor(item)) picker.AddItem(action == RuleAction.Off ? "Auto: off" : $"Auto-{action.ToString().ToLowerInvariant()}", (int)action);
         var rule = Get(item);
         picker.Select(picker.GetItemIndex((int)(rule?.Action ?? RuleAction.Off)));
-        // No rule yet: Keep starts at what's owned, so picking an action alone never empties the stack.
-        keep.SetValueNoSignal(rule?.Keep ?? InBank(item));
+        // No rule yet: Keep starts at the configured default (0 / 1 / all but 1 / all owned).
+        keep.SetValueNoSignal(rule?.Keep ?? DefaultKeep(item));
         keep.SetMeta(UntouchedMeta, rule == null);
     }
 
@@ -248,13 +260,13 @@ internal static class ItemRules
         keep.Prefix = ""; keep.Suffix = "";
         keep.SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd;
         keep.CustomMinimumSize = new Vector2(Math.Max(keep.CustomMinimumSize.X, 110), keep.CustomMinimumSize.Y);
-        UI.UiKit.AddTooltip(keep, "Keep", "How many to leave in the bank. Starts at what you own now; lower it to let the rule handle the rest.");
+        UI.UiKit.AddTooltip(keep, "Keep", "How many to leave in the bank. Starts at the Default Keep setting; set it before picking an action.");
         line.AddChild(keep);
 
         picker.ItemSelected += index =>
         {
             if (!s_current.TryGetValue(options, out var box) || box.Value == null) return;
-            if (keep.GetMeta(UntouchedMeta, false).AsBool()) keep.SetValueNoSignal(InBank(box.Value));
+            if (keep.GetMeta(UntouchedMeta, false).AsBool()) keep.SetValueNoSignal(DefaultKeep(box.Value));
             keep.SetMeta(UntouchedMeta, false);
             Set(box.Value, (RuleAction)picker.GetItemId((int)index), (int)keep.Value);
         };

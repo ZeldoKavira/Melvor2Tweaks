@@ -48,6 +48,20 @@ internal static class DevCommands
                     }
                 }
                 break;
+            case var dd when dd.StartsWith("dropdown:"):
+            {
+                // dropdown:open | dropdown:<index> - our settings dropdowns; logs item counts incl. the game's Screen mode one
+                foreach (var d in FindVisibleTree<GamesByMalcs.Melvor2.CustomControls.CustomDropdown>())
+                {
+                    bool ours = d.GetPath().ToString().Contains("Melvor2TweaksSettingsView");
+                    Plugin.Log($"dropdown {(ours ? "ours" : "game")} {d.Name}: items={d.ItemCount} selected={d.SelectedIndex}");
+                    if (!ours) continue;
+                    string arg = dd.Substring("dropdown:".Length);
+                    if (arg == "open") d.Open(); else d.Select(int.Parse(arg));
+                }
+                Plugin.Log($"NewRuleKeep = {Settings.Current.NewRuleKeep}");
+                break;
+            }
             case var s when s.StartsWith("items-show:"):
             {
                 // items-show:<filter 0|1|2>:<search text>

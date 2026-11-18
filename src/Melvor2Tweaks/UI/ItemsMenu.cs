@@ -128,7 +128,7 @@ internal static class ItemsMenu
         header.AddChild(UiKit.HintIcon("Item automation",
             "Pick Sell, Open or Bury for an item and how many to keep. Everything above that is handled right away, " +
             "on every drop, and whenever you load your save. Opened contents follow their own rules. Locked items are never touched.\n" +
-            "Keep starts at the amount you own, so a new rule changes nothing until you lower it.\n" +
+            "For a new rule, Keep starts at the Default Keep setting (Settings > Melvor2Tweaks > Items); set Keep first to use another amount.\n" +
             "\"Bank & rules\" lists what you own plus every item with a rule; searching there covers every item in the game, " +
             "so you can set up items you haven't found yet.\n" +
             "Also available from an item's Sell panel in the bank."));
@@ -312,8 +312,8 @@ internal static class ItemsMenu
             CustomMinimumSize = new Vector2(130, 0),
             SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
         };
-        // Without a rule, Keep starts at what's owned now: picking an action then touches nothing until Keep is lowered.
-        keep.SetValueNoSignal(rule?.Keep ?? ItemRules.InBank(item));
+        // Without a rule, Keep starts at the configured default; set it before picking an action to override.
+        keep.SetValueNoSignal(rule?.Keep ?? ItemRules.DefaultKeep(item));
         row.AddChild(keep);
 
         void Changed()
@@ -328,7 +328,7 @@ internal static class ItemsMenu
         bool prefilled = rule == null; // Keep still shows the owned count from when the row was built
         picker.ItemSelected += _ =>
         {
-            if (prefilled) keep.SetValueNoSignal(ItemRules.InBank(item));
+            if (prefilled) keep.SetValueNoSignal(ItemRules.DefaultKeep(item));
             prefilled = false;
             Changed();
         };

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using GamesByMalcs.Melvor2.CustomControls;
 using GamesByMalcs.Melvor2.GameMenus.PauseOverlay;
 using Godot;
 using HarmonyLib;
@@ -112,10 +113,12 @@ internal static class SettingsTab
         var rowTemplate = frame.FindChild("StopActionOnFullBank", true, false) as Control;
         var list = rowTemplate?.GetParent() as VBoxContainer;
         var spinTemplate = refInterface == null ? null : Traverse.Create(refInterface).Property("TooltipDelay").GetValue<SpinBox>();
+        var refDisplay = t.Property("DisplaySettingsView").GetValue<Node>();
+        var dropdownTemplate = refDisplay == null ? null : Traverse.Create(refDisplay).Property("ScreenModeDropdown").GetValue<CustomDropdown>();
         if (rowTemplate == null || list == null) { Plugin.Log("SettingsTab: row template missing"); return; }
         foreach (Node c in list.GetChildren()) list.RemoveChild(c); // rowTemplate kept (detached) as the template
 
-        var kit = new RowKit(rowTemplate, spinTemplate);
+        var kit = new RowKit(rowTemplate, spinTemplate, dropdownTemplate);
         BuildRows(list, kit);
 
         button.Pressed += () =>
@@ -129,10 +132,11 @@ internal static class SettingsTab
     }
 
     // ---- rows ------------------------------------------------------------------------------------
-    private sealed class RowKit(Control row, SpinBox? spin)
+    private sealed class RowKit(Control row, SpinBox? spin, CustomDropdown? dropdown)
     {
         public Control Row { get; } = row;
         public SpinBox? Spin { get; } = spin;
+        public CustomDropdown? Dropdown { get; } = dropdown;
         public LabelSettings? NameStyle { get; } = (row.FindChild("DisplayName", true, false) as Label)?.LabelSettings;
         public LabelSettings? DescStyle { get; } = (row.FindChild("Description", true, false) as Label)?.LabelSettings;
     }
@@ -148,12 +152,13 @@ internal static class SettingsTab
         {
             list.AddChild(Header(group.Key, kit));
             foreach (var (prop, attr) in group)
-                list.AddChild(prop.PropertyType == typeof(bool) ? ToggleRow(prop, attr!, kit) : NumberRow(prop, attr!, kit));
+                list.AddChild(prop.PropertyType == typeof(bool) ? ToggleRow(prop, attr!, kit)
+                    : prop.PropertyType.IsEnum ? ChoiceRow(prop, attr!, kit)
+                    : NumberRow(prop, attr!, kit));
+            if (group.Key == "Items")
+                list.AddChild(Text("Auto-sell, auto-open and auto-bury are set per item in the top bar's Items menu " +
+                                   "(or from an item's Sell panel in the bank).", kit.DescStyle));
         }
-
-        list.AddChild(Header("Items", kit));
-        list.AddChild(Text("Auto-sell, auto-open and auto-bury are set per item in the top bar's Items menu " +
-                           "(or from an item's Sell panel in the bank).", kit.DescStyle));
 
         list.AddChild(Text($"Melvor2Tweaks v{Plugin.Version} - changes apply immediately.", kit.DescStyle));
     }
@@ -217,6 +222,67 @@ internal static class SettingsTab
             line.AddChild(spin);
         }
         return row;
+    }
+
+    /// <summary>Enum setting: the game's own settings dropdown (Display > Screen mode) beside the texts.</summary>
+    private static Control ChoiceRow(PropertyInfo prop, SettingAttribute attr, RowKit kit)
+    {
+        var row = CopyRow(kit, attr.Label, attr.Description);
+        foreach (var cb in row.FindChildren("*", "CheckButton", true, false)) { cb.GetParent().RemoveChild(cb); cb.QueueFree(); }
+        if (row.FindChild("DisplayName", true, false)?.GetParent() is not Control texts || texts.GetParent() is not Node holder) return row;
+
+        var line = new HBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        line.AddThemeConstantOverride("separation", 16);
+        holder.RemoveChild(texts);
+        line.AddChild(texts);
+        holder.AddChild(line);
+
+        var values = Enum.GetValues(prop.PropertyType);
+        string[] labels = attr.Options ?? values.Cast<object>().Select(v => v.ToString()!).ToArray();
+        int current = Array.IndexOf(values, prop.GetValue(Settings.Current));
+
+        if (kit.Dropdown != null)
+        {
+            var dd = (CustomDropdown)kit.Dropdown.Duplicate(CopyFlags);
+            RemapNodeRefs(kit.Dropdown, dd);
+            dd.SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd;
+            dd.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+            dd.CustomMinimumSize = new Vector2(Math.Max(dd.CustomMinimumSize.X, 180), dd.CustomMinimumSize.Y);
+            void Populate()
+            {
+                dd.ClearItems();
+                foreach (string label in labels) dd.AddItem(label);
+                dd.SelectedIndex = current; // no event
+                dd.ItemSelected += (_, e) => { if (e.Index >= 0 && e.Index < values.Length) Set(prop, values.GetValue(e.Index)!); };
+            }
+            dd.Ready += Populate; // _Ready repopulates from the copied Screen mode entries, so fill in after it
+            line.AddChild(dd);
+            if (dd.IsNodeReady()) { dd.Ready -= Populate; Populate(); }
+        }
+        else
+        {
+            var ob = new OptionButton { FocusMode = Control.FocusModeEnum.None, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
+            foreach (string label in labels) ob.AddItem(label);
+            ob.Select(current);
+            ob.ItemSelected += i => Set(prop, values.GetValue((int)i)!);
+            line.AddChild(ob);
+        }
+        return row;
+    }
+
+    /// <summary>
+    /// Points the copy's exported node properties (toggle, list panel, item list...) at its own children
+    /// rather than the template's, so the copy never drives the game's dropdown.
+    /// </summary>
+    private static void RemapNodeRefs(Node template, Node copy)
+    {
+        foreach (var p in AccessTools.GetDeclaredProperties(template.GetType()))
+        {
+            if (!typeof(Node).IsAssignableFrom(p.PropertyType) || !p.CanRead || !p.CanWrite) continue;
+            if (p.GetValue(template) is not Node target || !template.IsAncestorOf(target)) continue;
+            var own = copy.GetNodeOrNull(template.GetPathTo(target));
+            if (own != null) p.SetValue(copy, own);
+        }
     }
 
     private static SpinBox NewSpin(RowKit kit, double min, double max, double step, double value)

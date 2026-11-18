@@ -17,6 +17,8 @@ public sealed class SettingAttribute(string category, string label, string descr
     public double Step { get; init; } = 1;
     /// <summary>Show a 0..1 value as a percentage.</summary>
     public bool Percent { get; init; }
+    /// <summary>Labels for an enum setting, in enum order (shown as a dropdown).</summary>
+    public string[]? Options { get; init; }
 }
 
 /// <summary>User settings, stored as JSON in the game's user data folder (Melvor2Tweaks\settings.json).</summary>
@@ -88,6 +90,12 @@ public sealed class Settings
 
     [Setting("Interface", "Double-click to equip", "Double-click equipment in the bank to equip it (into a free slot when there is one; ammo equips the whole stack).")]
     public bool BankDoubleClickEquip { get; set; } = true;
+
+    // ---- Items -------------------------------------------------------------------------------------
+    [Setting("Items", "Default Keep for new rules", "What the Keep amount starts at when you give an item Auto-sell, Auto-open or Auto-bury " +
+             "(bank Sell panel and Items menu). Change Keep before picking the action to override it.",
+             Options = new[] { "0", "1", "All but 1", "All" })]
+    public Features.KeepDefault NewRuleKeep { get; set; } = Features.KeepDefault.Zero;
 
     /// <summary>Item automation: item id -> Sell / Open / Bury everything above a keep minimum.</summary>
     public System.Collections.Generic.Dictionary<string, Features.ItemRule> ItemRules { get; set; } = new();
