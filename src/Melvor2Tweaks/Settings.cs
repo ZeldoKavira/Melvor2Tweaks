@@ -60,6 +60,9 @@ public sealed class Settings
     public bool BossAutoUnpause { get; set; } = true;
 
     // ---- Skilling ----------------------------------------------------------------------------------
+    [Setting("Skilling", "Agility: stop before a lethal obstacle", "Before an obstacle that could hit hard enough to kill you, eat until it can't (auto-eat only kicks in at 25% hitpoints, after the hit). Out of food, the course stops instead of risking a toolbelt item.")]
+    public bool AgilityStopBeforeDeath { get; set; } = true;
+
     [Setting("Skilling", "Auto-activate bonus events", "Rare and astrology bonus events activate as soon as they are found. A waiting bonus blocks new ones.")]
     public bool AutoActivateBonuses { get; set; } = true;
 

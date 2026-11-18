@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using GamesByMalcs.Melvor2.GameMenus.PauseOverlay;
 using Godot;
 
@@ -48,6 +49,15 @@ internal static class DevCommands
                     }
                 }
                 break;
+            case "agility-check":
+            {
+                var game = TimeBank.TimeBank.Game!;
+                game.Entities.TryGetObjectById("MelvorBase:Agility", out var agEntity);
+                if (agEntity?.Components.Values.OfType<GamesByMalcs.Melvor2.Entities.Agility.AgilityActionComponent>().FirstOrDefault() is { } ag)
+                    Plugin.Log(Features.AgilitySafety.Describe(ag));
+                else Plugin.Log("agility-check: no agility component");
+                break;
+            }
             case var dd when dd.StartsWith("dropdown:"):
             {
                 // dropdown:open | dropdown:<index> - our settings dropdowns; logs item counts incl. the game's Screen mode one
