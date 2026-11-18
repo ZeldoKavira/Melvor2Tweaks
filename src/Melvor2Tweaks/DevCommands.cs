@@ -48,6 +48,20 @@ internal static class DevCommands
                     }
                 }
                 break;
+            case "find-hint":
+            {
+                // Live nodes showing the game's "?" hint icon: how they're built and how their tooltip attaches.
+                int found = 0;
+                foreach (var tr in FindVisibleTree<TextureRect>())
+                {
+                    if (tr.Texture?.ResourcePath?.Contains("TooltipHint") != true) continue;
+                    Plugin.Log($"hint at {tr.GetPath()}");
+                    Dump(tr.GetParent(), 0, 2);
+                    if (++found >= 2) break;
+                }
+                Plugin.Log($"find-hint: {found} found");
+                break;
+            }
             case "scroll-settings-bottom":
                 foreach (var view in FindVisibleTree<VBoxContainer>())
                 {
@@ -139,6 +153,9 @@ internal static class DevCommands
         if (node is BaseButton b) extra += $" btntext='{(b as Button)?.Text}'";
         if (node is BoxContainer box) extra += $" sep={box.GetThemeConstant("separation")}";
         if (node is MarginContainer m) extra += $" margins={m.GetThemeConstant("margin_left")},{m.GetThemeConstant("margin_top")}";
+        if (node is TextureRect tex) extra += $" tex={tex.Texture?.ResourcePath} expand={tex.ExpandMode} stretch={tex.StretchMode} mouse={tex.MouseFilter}";
+        if (node is Control ctl && ctl.TooltipText.Length > 0) extra += $" tooltipText='{ctl.TooltipText}'";
+        if (node.SceneFilePath.Length > 0) extra += $" scene={node.SceneFilePath}";
         if (node is PanelContainer p) extra += $" panel={p.GetThemeStylebox("panel")?.GetType().Name}:{p.GetThemeStylebox("panel")?.ResourcePath}";
         Plugin.Log($"{new string(' ', depth * 2)}{node.GetType().Name} '{node.Name}'{extra} script={(node.GetScript().VariantType != Variant.Type.Nil ? "yes" : "no")}");
         if (depth >= maxDepth) return;

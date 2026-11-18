@@ -25,6 +25,25 @@ internal static class UiKit
         target.AddChild(tip);
     }
 
+    /// <summary>
+    /// The game's "?" hint icon with a hover tooltip, built like its own (e.g. combat stats' HitChanceHintIcon):
+    /// 16x16 TextureRect of TooltipHint.png, mouse pass-through, with a TextTooltip child.
+    /// </summary>
+    internal static TextureRect HintIcon(string? title, string content)
+    {
+        var icon = new TextureRect
+        {
+            Texture = GD.Load<Texture2D>("res://Assets/Icons/TooltipHint.png"),
+            CustomMinimumSize = new Vector2(16, 16),
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+            MouseFilter = Control.MouseFilterEnum.Pass,
+            SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
+        };
+        AddTooltip(icon, title, content);
+        return icon;
+    }
+
     /// <summary>Next level above the current one that unlocks a milestone for this skill (else level + 1).</summary>
     internal static int NextMilestoneLevel(GameEntity entity)
     {

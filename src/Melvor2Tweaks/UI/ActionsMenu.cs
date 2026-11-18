@@ -134,9 +134,7 @@ internal static class ActionsMenu
             "While on, clicking any skill's normal Start / Cut / Mine / Fight button adds it to the queue (with the limit below) " +
             "instead of switching to it. Your current action keeps going.");
         header.AddChild(s_queueMode);
-        var help = TopBar.GameButton("?");
-        help.CustomMinimumSize = new Vector2(36, 36);
-        UiKit.AddTooltip(help, "How the queue works",
+        var help = UiKit.HintIcon("How the queue works",
             "Add to queue: queues the action running now.\n" +
             "Queue mode: click any skill's normal button to queue it instead; your current action keeps going (its progress bar restarts).\n" +
             "Limits: \"Until it stops\" runs until the game stops it; \"Until level\" uses each skill's next milestone; \"For N items\" counts products, not side drops.\n" +
