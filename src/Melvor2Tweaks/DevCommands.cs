@@ -326,6 +326,22 @@ internal static class DevCommands
                 Actions.QueueMode.Enabled = qmWas;
                 break;
             }
+            case var rf when rf.StartsWith("run-first:"):
+            {
+                // run-first:<ns>:<entity>:<ns>:<id>:<stop 0|1|2>:<value>
+                var p = rf.Split(':');
+                Actions.ActionQueue.RunFirstNow(new Actions.QueueEntry
+                {
+                    Target = new Actions.ActionTarget { EntityId = p[1] + ":" + p[2], Ids = new[] { p[3] + ":" + p[4] }, Label = "" },
+                    Stop = (Actions.StopKind)int.Parse(p[5]), StopValue = int.Parse(p[6]),
+                });
+                break;
+            }
+            case var qs when qs.StartsWith("queue-set:"):
+                // queue-set:<index>:<stopValue>
+                if (Actions.ActionQueue.State is { } qst && qs.Split(':') is { Length: 3 } qp && int.Parse(qp[1]) < qst.Entries.Count)
+                { qst.Entries[int.Parse(qp[1])].StopValue = int.Parse(qp[2]); Actions.ActionQueue.Save(); }
+                break;
             case "tick-rate":
                 Plugin.Log($"tick-rate: {GamesByMalcs.Melvor2.Core.Constants.TicksPerSecond}/s, interval {GamesByMalcs.Melvor2.Core.Constants.TickInterval} ms");
                 break;
@@ -333,7 +349,7 @@ internal static class DevCommands
                 if (TimeBank.TimeBank.Game is { } etaGame)
                 {
                     var (cur, list, total) = Actions.QueueEta.All(etaGame);
-                    Plugin.Log($"queue-eta: current {cur}; entries [{string.Join(", ", list)}]; total {total}");
+                    Plugin.Log($"queue-eta: progress {Actions.ActionQueue.ItemProgress}; current {cur}; entries [{string.Join(", ", list)}]; total {total}");
                 }
                 break;
             case "log-dump":

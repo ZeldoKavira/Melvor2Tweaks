@@ -28,6 +28,8 @@ public sealed class QueueEntry
     /// <summary>The rest of an entry that ran out of materials part-way (not looped; the original was).</summary>
     public bool Resume { get; set; }
     public int GatherDepth { get; set; }
+    /// <summary>Items counted so far while it runs (saved, so a reload or restart keeps the progress).</summary>
+    public int Done { get; set; }
     public int GatherRounds { get; set; }
 
     public QueueEntry CopyForLoop() => new() { Target = Target, Stop = Stop, StopValue = StopValue, CountItemId = CountItemId };
@@ -51,7 +53,7 @@ public sealed class QueueState
     public bool Enabled { get; set; } = true;
     /// <summary>Each entry goes back on the end of the queue when it starts.</summary>
     public bool Loop { get; set; }
-    /// <summary>Stop rule on the running action (survives reloads; item progress restarts at 0).</summary>
+    /// <summary>The running queue entry and its limit (survives reloads, item progress included).</summary>
     public QueueEntry? Current { get; set; }
 }
 
@@ -135,8 +137,22 @@ internal static class ActionQueue
 
     internal static void SetLoop(bool on) { if (State is { } s) { s.Loop = on; Save(); } }
 
+    private static bool s_progressDirty;
+    private static long s_lastProgressSave;
+
+    /// <summary>Writes the file without refreshing the UI (item progress; may run on the offline thread).</summary>
+    private static void SaveProgress()
+    {
+        s_progressDirty = false;
+        s_lastProgressSave = Environment.TickCount64;
+        try { File.WriteAllText(FilePath, JsonSerializer.Serialize(s_states, Json)); }
+        catch (Exception e) { Plugin.Log("Could not save queue progress: " + e.Message); }
+    }
+
     internal static void Save()
     {
+        s_progressDirty = false;
+        s_lastProgressSave = Environment.TickCount64;
         try
         {
             Directory.CreateDirectory(Settings.DataDir);
@@ -178,7 +194,7 @@ internal static class ActionQueue
         if (State is not { } state || action == null) return;
         state.Current = entry;
         Arm(action, entry);
-        if (ReferenceEquals(s_armedEntry, entry)) s_itemCount = progress;
+        if (ReferenceEquals(s_armedEntry, entry)) s_itemCount = entry.Done = progress;
         Save();
     }
 
@@ -188,7 +204,7 @@ internal static class ActionQueue
         if (entry == null) return;
         s_armedAction = action;
         s_armedEntry = entry;
-        s_itemCount = 0;
+        s_itemCount = entry.Done;
         if (entry.Stop == StopKind.None) return; // tracked (to put back if overridden), nothing to count
         if (entry.Stop == StopKind.Level)
         {
@@ -221,6 +237,8 @@ internal static class ActionQueue
         if (s_armedEntry.CountItemId != null ? e.Item.Id != s_armedEntry.CountItemId
                                              : Features.SkillingTweaks.IsSideDrop(s_armedAction, e.Item)) return;
         s_itemCount += e.Quantity;
+        s_armedEntry.Done = s_itemCount;
+        s_progressDirty = true;
         if (s_itemCount >= s_armedEntry.StopValue) RuleMet();
     }
 
@@ -269,6 +287,7 @@ internal static class ActionQueue
     /// <summary>Unsubscribes from game events (hot unload: the game would keep calling this copy's handlers).</summary>
     internal static void Shutdown()
     {
+        if (s_progressDirty) SaveProgress();
         Disarm();
         s_pendingAdvance = false;
     }
@@ -346,6 +365,7 @@ internal static class ActionQueue
     {
         private static void Prefix(Game __instance)
         {
+            if (s_progressDirty && Environment.TickCount64 - s_lastProgressSave > 10_000) SaveProgress();
             if (!s_pendingAdvance) return;
             s_pendingAdvance = false;
             Advance(__instance);
@@ -382,6 +402,28 @@ internal static class ActionQueue
             Disarm();
             if (State is QueueState cs) { cs.Current = null; Save(); }
         }
+    }
+
+    /// <summary>
+    /// Dev aid: puts <paramref name="first"/> at the front, the running entry's remainder right after it,
+    /// and starts <paramref name="first"/> now.
+    /// </summary>
+    internal static void RunFirstNow(QueueEntry first)
+    {
+        if (State is not { } s || TimeBank.TimeBank.Game is not { } game) return;
+        if (s_armedEntry is { } cur)
+        {
+            int left = cur.Stop == StopKind.Items ? cur.StopValue - s_itemCount : cur.StopValue;
+            if (cur.Stop != StopKind.Items || left > 0)
+                s.Entries.Insert(0, new QueueEntry { Target = cur.Target, Stop = cur.Stop, StopValue = left, CountItemId = cur.CountItemId, Resume = true });
+        }
+        Disarm();
+        s.Current = null;
+        s.Entries.Insert(0, first);
+        QueueMode.Internal = true;
+        try { RunningAction?.TryStop(); Advance(game); }
+        finally { QueueMode.Internal = false; }
+        if (first.Target.Label.Length == 0 && RunningAction is { } r && SkillActions.Capture(r) is { } t) { first.Target.Label = t.Label; Save(); }
     }
 
     private static void ResumeLater(QueueEntry entry)
