@@ -161,7 +161,7 @@ internal static class ActionsMenu
             "When the running action stops by itself - limit reached, out of materials, bank full, no traps - the next queued action starts. " +
             "Your own Stop does not advance the queue. When nothing is running, press Start (or tick Run queue) to begin it.\n" +
             "Loop: each action goes back on the end when it starts. Save / Load keep named queues.\n" +
-            "Crafting entries gather or make missing materials first (setting: Action queue). Time left uses each action's all-time rate from the Drop log, at the current speed.");
+            "Crafting entries gather or make missing materials first (setting: Action queue). Time left is game time, from each action's all-time rate in the Drop log: speed makes it pass faster, and a 1h time-bank skip takes 1h off.");
         header.AddChild(help);
         body.AddChild(header);
         s_logBody = BuildLogBody();

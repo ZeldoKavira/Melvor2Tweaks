@@ -6,7 +6,8 @@ namespace Melvor2Tweaks.Actions;
 
 /// <summary>
 /// Time-left estimates for the running limit and each queued entry, from the action log's all-time rates
-/// (items per game second, XP per game second). Game time is converted to real time at the current speed.
+/// (items per game second, XP per game second). Shown in game time: the speed multiplier makes it pass
+/// faster, and a time-bank skip takes exactly its length off.
 /// </summary>
 internal static class QueueEta
 {
@@ -51,16 +52,15 @@ internal static class QueueEta
             default:
                 // Crafting runs until the materials run out; everything else until stopped.
                 if (Gather.CraftsAffordable(game, target) is not int crafts) return Eta.Forever;
-                if (crafts == 0) return new Eta(0, false);
+                if (crafts == 0) return Eta.Unknown; // nothing to craft with yet: it gathers first (or is skipped)
                 return ActionLog.MsPerAction(log) is double perAction ? new Eta(crafts * perAction, false) : Eta.Unknown;
         }
     }
 
-    /// <summary>"3h 10m" in real time at the current speed.</summary>
+    /// <summary>"3h 10m" of game time (not divided by the speed multiplier).</summary>
     internal static string Format(double gameMs)
     {
-        double speed = Math.Max(0.01, Settings.Current.Speed);
-        var t = TimeSpan.FromMilliseconds(gameMs / speed);
+        var t = TimeSpan.FromMilliseconds(gameMs);
         if (t.TotalDays >= 1) return $"{(int)t.TotalDays}d {t.Hours}h";
         if (t.TotalHours >= 1) return $"{(int)t.TotalHours}h {t.Minutes}m";
         if (t.TotalMinutes >= 1) return $"{t.Minutes}m {t.Seconds}s";

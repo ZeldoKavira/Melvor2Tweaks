@@ -293,6 +293,11 @@ internal static class DevCommands
                         Plugin.Log($"btn-state: {selr?.Id} disabled={btn?.Disabled} queueMode={Actions.QueueMode.Enabled}");
                     }
                 break;
+            case var ba when ba.StartsWith("bank-add:"):
+                // bank-add:<minutes> - put time back in the time bank (e.g. refund a skip)
+                TimeBank.TimeBankStore.Deposit(double.Parse(ba.Substring("bank-add:".Length)) * 60_000, TimeBank.TimeBankStore.CreditedUntil);
+                Plugin.Log($"bank-add: bank now {TimeBank.TimeBank.Format(TimeBank.TimeBankStore.BankedMs)}");
+                break;
             case "tick-rate":
                 Plugin.Log($"tick-rate: {GamesByMalcs.Melvor2.Core.Constants.TicksPerSecond}/s, interval {GamesByMalcs.Melvor2.Core.Constants.TickInterval} ms");
                 break;
