@@ -91,13 +91,17 @@ public sealed class Settings
     public bool BonfireAutoRelight { get; set; } = true;
 
     // ---- Action queue ------------------------------------------------------------------------------
-    [Setting("Action queue", "Gather missing materials first", "When a queued crafting action (smithing, cooking, fletching...) is missing materials, " +
-             "the queue first gathers or makes them (woodcutting, mining, fishing, or another recipe such as bars), then crafts. " +
-             "A crafting entry that runs out part-way gathers more and carries on.")]
+    [Setting("Action queue", "Gather missing materials first", "When a queued crafting action with an item or level limit (smithing, cooking, " +
+             "fletching...) is missing materials, the queue first gathers or makes them (woodcutting, mining, fishing, or another recipe such as " +
+             "bars), then crafts; if it runs out part-way it gathers more and carries on until the limit.")]
     public bool QueueGatherFirst { get; set; } = true;
 
-    [Setting("Action queue", "Crafts to gather for", "How many crafts' worth of materials to gather for an entry with no item limit " +
-             "(\"Until it stops\", or \"Until level\" before the action has a known XP rate).", Min = 10, Max = 100000, Step = 10)]
+    [Setting("Action queue", "Gather for \"Until it stops\" crafts", "Off: an \"Until it stops\" craft uses the materials you have, then the " +
+             "queue moves on (it's skipped if you have none). On: it first gathers enough for the number of crafts below, makes them, then moves on.")]
+    public bool QueueGatherForUntilStops { get; set; } = false;
+
+    [Setting("Action queue", "Crafts to gather for", "How many crafts' worth of materials to gather when there's no item count to go by: " +
+             "\"Until it stops\" crafts (with the setting above on), and \"Until level\" before the action has a known XP rate.", Min = 10, Max = 100000, Step = 10)]
     public int QueueGatherBatch { get; set; } = 200;
 
     // ---- Interface ---------------------------------------------------------------------------------

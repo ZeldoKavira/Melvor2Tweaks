@@ -440,6 +440,8 @@ internal static class ActionQueue
 
     private static void ResumeLater(QueueEntry entry)
     {
+        // "Until it stops" means exactly that: out of materials, the queue moves on.
+        if (entry.Stop == StopKind.None) return;
         if (!Settings.Current.QueueGatherFirst || State is not { Enabled: true } s || TimeBank.TimeBank.Game is not { } game) return;
         if (!Gather.IsCrafting(game, entry.Target) || Gather.CraftsAffordable(game, entry.Target) is not 0) return;
         int left = entry.Stop == StopKind.Items ? entry.StopValue - s_itemCount : entry.StopValue;
@@ -517,7 +519,8 @@ internal static class ActionQueue
             }
 
             // Crafting: gather what it's missing first (those entries go in front of it).
-            if (Settings.Current.QueueGatherFirst && entry.GatherDepth < 4 && entry.GatherRounds < 5)
+            bool gather = entry.Stop == StopKind.None ? Settings.Current.QueueGatherForUntilStops : Settings.Current.QueueGatherFirst;
+            if (gather && entry.GatherDepth < 4 && entry.GatherRounds < 5)
             {
                 var plan = Gather.Plan(game, entry, CraftsWanted(game, entry), out string note);
                 if (note.Length > 0) Plugin.Log($"Queue: {entry.Target.Label}: {note}");

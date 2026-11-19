@@ -10,7 +10,7 @@ namespace Melvor2Tweaks;
 /// </summary>
 public static class Plugin
 {
-    public const string Version = "0.11.3";
+    public const string Version = "0.11.4";
     public const string HarmonyId = "net.zeldo.melvor2tweaks";
 
     private static HarmonyLib.Harmony? s_harmony;
