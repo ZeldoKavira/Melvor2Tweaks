@@ -370,6 +370,93 @@ internal static class ActionsMenu
         return box;
     }
 
+    // ---- drag and drop -----------------------------------------------------------------------------
+    private static readonly Color DropLine = new(0.98f, 0.8f, 0.3f);
+    private static readonly List<PanelContainer> s_dragRows = new();
+
+    /// <summary>
+    /// Wraps a queue row so it can be dragged onto another row, taking that row's place (so it lands below
+    /// it when dragged down, above it when dragged up). Uses Control.SetDragForwarding, so no Godot
+    /// subclass is needed. A gold line marks where it will go.
+    /// </summary>
+    private static PanelContainer DragRow(HBoxContainer row, int index, string text)
+    {
+        var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Stop, MouseDefaultCursorShape = Control.CursorShape.Move };
+        var style = new StyleBoxFlat { BgColor = new Color(0, 0, 0, 0), BorderColor = DropLine, ContentMarginTop = 2, ContentMarginBottom = 2 };
+        panel.AddThemeStyleboxOverride("panel", style);
+        panel.AddChild(row);
+        s_dragRows.Add(panel);
+
+        panel.SetDragForwarding(
+            Callable.From((Vector2 _) =>
+            {
+                var preview = TopBar.RawLabel(text, 14, DropLine);
+                panel.SetDragPreview(preview);
+                return Variant.From(index);
+            }),
+            Callable.From((Vector2 at, Variant data) =>
+            {
+                if (data.VariantType != Variant.Type.Int) return false;
+                int from = data.AsInt32();
+                if (from == index) { ClearDropLines(); return true; }
+                ShowDropLine(panel, top: from > index); // moving up lands above the row, moving down below it
+                return true;
+            }),
+            Callable.From((Vector2 at, Variant data) =>
+            {
+                ClearDropLines();
+                int from = data.AsInt32();
+                if (s_timing) Plugin.Log($"drop: from {from} onto row {index}");
+                ActionQueue.Move(from, index); // takes that row's place: below it when moving down, above when moving up
+            }));
+        return panel;
+    }
+
+    /// <summary>Dev aid: drags row <paramref name="from"/> onto the top half of row <paramref name="onto"/> with real mouse events.</summary>
+    internal static async void DevDrag(int from, int onto)
+    {
+        if (from >= s_dragRows.Count || onto >= s_dragRows.Count || !Valid(s_dragRows[from])) { Plugin.Log("drag-test: rows not there (open the Actions menu)"); return; }
+        var vp = s_dragRows[from].GetViewport();
+        var tree = (SceneTree)Engine.GetMainLoop();
+        Vector2 start = s_dragRows[from].GetGlobalRect().GetCenter() with { X = s_dragRows[from].GetGlobalRect().Position.X + 6 };
+        var end = s_dragRows[onto].GetGlobalRect();
+        Plugin.Log($"drag-test: from rect {s_dragRows[from].GetGlobalRect()} onto rect {end}");
+        Vector2 target = new(end.Position.X + 6, end.Position.Y + end.Size.Y * 0.25f);
+        var canvas = vp.GetFinalTransform(); // GUI coords -> window coords
+        void Push(InputEvent e) => vp.PushInput(e, false);
+        Push(new InputEventMouseMotion { Position = canvas * start, GlobalPosition = canvas * start });
+        await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+        Push(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true, Position = canvas * start, GlobalPosition = canvas * start, ButtonMask = MouseButtonMask.Left });
+        for (int i = 1; i <= 10; i++)
+        {
+            await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+            var p = canvas * start.Lerp(target, i / 10f);
+            Push(new InputEventMouseMotion { Position = p, GlobalPosition = p, ButtonMask = MouseButtonMask.Left, Relative = (target - start) / 10 });
+        }
+        await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+        Plugin.Log($"drag-test: dragging={vp.GuiIsDragging()}");
+        Push(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false, Position = canvas * target, GlobalPosition = canvas * target });
+        await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+        Plugin.Log("drag-test: queue now " + string.Join(" | ", ActionQueue.State?.Entries.ConvertAll(e => e.Target.Label + " " + e.StopValue) ?? new()));
+    }
+
+    private static void ShowDropLine(PanelContainer target, bool top)
+    {
+        foreach (var p in s_dragRows)
+        {
+            if (!Valid(p) || p.GetThemeStylebox("panel") is not StyleBoxFlat st) continue;
+            bool on = ReferenceEquals(p, target);
+            st.BorderWidthTop = on && top ? 2 : 0;
+            st.BorderWidthBottom = on && !top ? 2 : 0;
+        }
+    }
+
+    private static void ClearDropLines()
+    {
+        foreach (var p in s_dragRows)
+            if (Valid(p) && p.GetThemeStylebox("panel") is StyleBoxFlat st) { st.BorderWidthTop = 0; st.BorderWidthBottom = 0; }
+    }
+
     internal static void ToggleLog()
     {
         if (!Valid(s_logBody) || !Valid(s_queueBody)) return;
@@ -532,6 +619,7 @@ internal static class ActionsMenu
         s_enabled!.SetPressedNoSignal(state?.Enabled ?? true);
         if (Valid(s_loop)) s_loop!.SetPressedNoSignal(state?.Loop ?? false);
         RefreshPresets();
+        if (Valid(s_list) && !s_list!.GetViewport().GuiIsDragging()) ClearDropLines();
         if (Valid(s_logBody) && s_logBody!.Visible) RefreshLog();
         if (Valid(s_start)) s_start!.Visible = queued > 0 && running is not { IsStarted: true };
 
@@ -541,12 +629,19 @@ internal static class ActionsMenu
         s_listSignature = sig;
         foreach (Node c in s_list!.GetChildren()) { s_list.RemoveChild(c); c.QueueFree(); }
         s_etaLabels.Clear();
+        s_dragRows.Clear();
         if (queued == 0) { s_list.AddChild(TopBar.RawLabel("Nothing queued.", 14, new Color(1, 1, 1, 0.6f))); return; }
         for (int i = 0; i < queued; i++)
         {
             int index = i;
-            var row = new HBoxContainer();
+            var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Pass };
+            var grip = TopBar.RawLabel("::", 16, new Color(1, 1, 1, 0.45f));
+            grip.VerticalAlignment = VerticalAlignment.Center;
+            grip.MouseFilter = Control.MouseFilterEnum.Pass;
+            grip.MouseDefaultCursorShape = Control.CursorShape.Move;
+            row.AddChild(grip);
             var label = TopBar.RawLabel($"{i + 1}. {state!.Entries[i].Describe()}", 14, null);
+            label.MouseFilter = Control.MouseFilterEnum.Pass;
             label.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
             label.ClipText = true;
             row.AddChild(label);
@@ -564,7 +659,7 @@ internal static class ActionsMenu
             var remove = TopBar.GameButton("X");
             remove.Pressed += () => ActionQueue.RemoveAt(index);
             row.AddChild(remove);
-            s_list.AddChild(row);
+            s_list.AddChild(DragRow(row, index, label.Text));
         }
     }
 }

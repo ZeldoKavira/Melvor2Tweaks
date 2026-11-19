@@ -342,6 +342,9 @@ internal static class DevCommands
                 if (Actions.ActionQueue.State is { } qst && qs.Split(':') is { Length: 3 } qp && int.Parse(qp[1]) < qst.Entries.Count)
                 { qst.Entries[int.Parse(qp[1])].StopValue = int.Parse(qp[2]); Actions.ActionQueue.Save(); }
                 break;
+            case var dt when dt.StartsWith("drag-test:"):
+                UI.ActionsMenu.DevDrag(int.Parse(dt.Split(':')[1]), int.Parse(dt.Split(':')[2]));
+                break;
             case "tick-rate":
                 Plugin.Log($"tick-rate: {GamesByMalcs.Melvor2.Core.Constants.TicksPerSecond}/s, interval {GamesByMalcs.Melvor2.Core.Constants.TickInterval} ms");
                 break;

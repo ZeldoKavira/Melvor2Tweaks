@@ -280,6 +280,18 @@ internal static class ActionQueue
         Save();
     }
 
+    /// <summary>Moves entry <paramref name="from"/> so it ends up at index <paramref name="to"/> (drag and drop).</summary>
+    internal static void Move(int from, int to)
+    {
+        if (State is not { } s || from < 0 || from >= s.Entries.Count) return;
+        to = Math.Clamp(to, 0, s.Entries.Count - 1);
+        if (from == to) return;
+        var entry = s.Entries[from];
+        s.Entries.RemoveAt(from);
+        s.Entries.Insert(to, entry);
+        Save();
+    }
+
     internal static void Clear() { if (State is { } s) { s.Entries.Clear(); Save(); } }
 
     internal static void SetEnabled(bool on) { if (State is { } s) { s.Enabled = on; Save(); } }
