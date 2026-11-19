@@ -131,7 +131,7 @@ internal static class ActionsMenu
 
     private static PanelContainer BuildPanel()
     {
-        var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Stop, CustomMinimumSize = new Vector2(520, 0) };
+        var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Stop, CustomMinimumSize = new Vector2(600, 0) };
         panel.AddThemeStyleboxOverride("panel", PanelStyle());
         var margin = new MarginContainer();
         foreach (var side in new[] { "left", "right", "top", "bottom" }) margin.AddThemeConstantOverride("margin_" + side, 14);
@@ -371,7 +371,7 @@ internal static class ActionsMenu
         return box;
     }
 
-    private static void ToggleLog()
+    internal static void ToggleLog()
     {
         if (!Valid(s_logBody) || !Valid(s_queueBody)) return;
         bool showLog = !s_logBody!.Visible;
@@ -541,7 +541,11 @@ internal static class ActionsMenu
             label.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
             label.ClipText = true;
             row.AddChild(label);
+            row.AddThemeConstantOverride("separation", 8);
             var eta = TopBar.RawLabel(i < etas.Count ? etas[i] : "", 13, new Color(0.6f, 0.9f, 0.6f));
+            eta.CustomMinimumSize = new Vector2(100, 0);
+            eta.HorizontalAlignment = HorizontalAlignment.Right;
+            eta.VerticalAlignment = VerticalAlignment.Center;
             s_etaLabels.Add(eta);
             row.AddChild(eta);
             var up = TopBar.GameButton("Up");

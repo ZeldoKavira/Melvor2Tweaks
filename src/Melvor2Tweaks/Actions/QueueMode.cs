@@ -34,6 +34,8 @@ internal static class QueueMode
     private static bool s_hadRestore;
     private static ActionComponent? s_started;
     private static bool s_scheduled;
+    private static QueueEntry? s_savedRule;
+    private static int s_savedProgress;
 
     private static bool Active => Enabled && !Internal && TimeBank.TimeBank.IsProcessing;
 
@@ -71,6 +73,9 @@ internal static class QueueMode
     private static void Remember(ActionComponent? running)
     {
         if (s_scheduled) return; // keep the first (original) action of this click
+        // The instant start stops the running action, which clears its limit: keep it to put back.
+        s_savedRule = ActionQueue.State?.Current;
+        s_savedProgress = ActionQueue.ItemProgress;
         s_hadRestore = running != null && running.IsStarted;
         s_restore = s_hadRestore ? SkillActions.Capture(running!) : null;
     }
@@ -89,6 +94,9 @@ internal static class QueueMode
         var started = s_started;
         var restore = s_restore;
         bool hadRestore = s_hadRestore;
+        var savedRule = s_savedRule;
+        int savedProgress = s_savedProgress;
+        s_savedRule = null;
         s_started = null; s_restore = null; s_hadRestore = false;
         var game = TimeBank.TimeBank.Game;
         if (started == null || game == null) return;
@@ -120,7 +128,11 @@ internal static class QueueMode
             // Put back what was running before the click (or stop the instant start).
             if (hadRestore && restore != null && !restore.SameAs(SkillActions.Capture(started)))
             {
-                if (!SkillActions.Start(game, restore, out string why))
+                if (SkillActions.Start(game, restore, out string why))
+                {
+                    if (savedRule != null && savedRule.Target.SameAs(restore)) ActionQueue.RestoreRule(savedRule, savedProgress);
+                }
+                else
                 {
                     started.TryStop();
                     status += $" (couldn't resume {restore.Label}: {why})";

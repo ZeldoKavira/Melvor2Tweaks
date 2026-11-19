@@ -88,6 +88,15 @@ internal static class DevCommands
                 }
                 break;
             }
+            case var it when it.StartsWith("item-tags:"):
+            {
+                string q = it.Substring("item-tags:".Length);
+                var items = TimeBank.TimeBank.Game?.Data.GetDataRegistryOutput<GamesByMalcs.Melvor2.Data.Items.Item>().GetAllObjects()
+                    .Where(i => i.DisplayName.Singular.Contains(q, StringComparison.OrdinalIgnoreCase)).Take(15);
+                foreach (var i in items ?? Enumerable.Empty<GamesByMalcs.Melvor2.Data.Items.Item>())
+                    Plugin.Log($"tags {i.Id}: " + string.Join(", ", i.BankTags.Select(t => $"{t.BankTag.DisplayName.Text}{(t.IsProduct ? " P" : "")}{(t.IsIngredient ? " I" : "")}")));
+                break;
+            }
             case var s when s.StartsWith("items-show:"):
             {
                 // items-show:<filter 0|1|2>:<search text>
@@ -196,6 +205,36 @@ internal static class DevCommands
                 }).CallDeferred();
                 break;
             }
+            case "qm-test-mining":
+            {
+                // Same call as clicking a rock's Mine button, with Queue mode on (a different skill than the running one).
+                var game = TimeBank.TimeBank.Game!;
+                game.Entities.TryGetObjectById("MelvorBase:Mining", out var mEntity);
+                var m = (GamesByMalcs.Melvor2.Entities.Mining.MiningActionComponent)mEntity!.Components["Action"];
+                GamesByMalcs.Melvor2.Entities.Mining.MiningRock? rock = null;
+                foreach (var r in m.Rocks.Values) if (r.Recipe.Requirements.AreMet) { rock = r; break; }
+                Plugin.Log($"qm-test: running={Actions.ActionQueue.RunningAction?.Entity.Id}, rule={Actions.ActionQueue.State?.Current?.Describe()}, clicking rock {rock?.Recipe.Id}");
+                Actions.QueueMode.Enabled = true;
+                m.SelectRock(rock!);
+                Callable.From(() =>
+                {
+                    Actions.QueueMode.Enabled = false;
+                    Plugin.Log($"qm-test: after, running={Actions.ActionQueue.RunningAction?.Entity.Id} " +
+                               $"rule={Actions.ActionQueue.State?.Current?.Describe()} progress={Actions.ActionQueue.ItemProgress}, queued={Actions.ActionQueue.State?.Entries.Count}");
+                }).CallDeferred();
+                break;
+            }
+            case var rl when rl.StartsWith("rule:"):
+            {
+                // rule:<0 none|1 level|2 items>:<value> on the running action
+                var parts = rl.Split(':');
+                Actions.ActionQueue.SetRuleOnRunning((Actions.StopKind)int.Parse(parts[1]), int.Parse(parts[2]));
+                Plugin.Log($"rule: now {Actions.ActionQueue.State?.Current?.Describe() ?? "none"}");
+                break;
+            }
+            case "toggle-droplog":
+                UI.ActionsMenu.ToggleLog();
+                break;
             case "tick-rate":
                 Plugin.Log($"tick-rate: {GamesByMalcs.Melvor2.Core.Constants.TicksPerSecond}/s, interval {GamesByMalcs.Melvor2.Core.Constants.TickInterval} ms");
                 break;
@@ -212,7 +251,7 @@ internal static class DevCommands
                 break;
             case "cat-list":
                 foreach (var cat in Features.ItemRules.Categories())
-                    Plugin.Log($"category {cat.Id} '{cat.DisplayName.Text}'");
+                    Plugin.Log($"category {cat.Key} '{cat.Name}': {TimeBank.TimeBank.Game?.Data.GetDataRegistryOutput<GamesByMalcs.Melvor2.Data.Items.Item>().GetAllObjects().Count(cat.Matches)} items");
                 break;
             case "queue-start":
                 Plugin.Log("queue-start: [" + Actions.ActionQueue.StartIfIdle() + "] running " + (Actions.ActionQueue.RunningAction?.Entity.Id ?? "none"));

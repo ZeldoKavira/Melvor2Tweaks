@@ -169,6 +169,17 @@ internal static class ActionQueue
         Save();
     }
 
+    /// <summary>Puts a limit back on the running action (after Queue mode briefly switched away), keeping its progress.</summary>
+    internal static void RestoreRule(QueueEntry entry, int progress)
+    {
+        var action = RunningAction;
+        if (State is not { } state || action == null) return;
+        state.Current = entry;
+        Arm(action, entry);
+        if (ReferenceEquals(s_armedEntry, entry)) s_itemCount = progress;
+        Save();
+    }
+
     private static void Arm(ActionComponent action, QueueEntry? entry)
     {
         Disarm();

@@ -40,7 +40,15 @@ internal static class Gather
         CraftingRecipe(game, t)?.Stats.ItemCost.Values.Select(v => (v.Value.Item, v.Value.Quantity)).Where(c => c.Quantity > 0).ToList();
 
     internal static int ProductPerCraft(Game game, ActionTarget t) =>
-        Math.Max(1, CraftingRecipe(game, t)?.Stats.Product?.Value.Quantity ?? 1);
+        Math.Max(1, CraftingRecipe(game, t) is { } r ? PrimaryProduct(r).qty : 1);
+
+    /// <summary>What one craft makes: Stats.Product (cooking, herblore...) or the first of Stats.Products (artisan skills).</summary>
+    internal static (Item? item, int qty) PrimaryProduct(IActiveCraftingRecipe r)
+    {
+        if (r.Stats.Product?.Value is { } p) return (p.Item, p.Quantity);
+        if (r.Stats.Products?.Values.FirstOrDefault()?.Value is { } c) return (c.Item, c.Quantity);
+        return (null, 1);
+    }
 
     /// <summary>How many crafts the bank can pay for right now (null if not a crafting target).</summary>
     internal static int? CraftsAffordable(Game game, ActionTarget t)
@@ -76,7 +84,7 @@ internal static class Gather
                 default:
                     if (crafted != null) break;
                     foreach (var r in CraftingRecipes(action))
-                        if (r.Stats.Product?.Value.Item == item && r.Recipe.Requirements.AreMet)
+                        if (PrimaryProduct(r).item == item && r.Recipe.Requirements.AreMet)
                         { crafted = Make(entity, r.Recipe.Id, skill, r.Recipe.DisplayName.Text); break; }
                     break;
             }

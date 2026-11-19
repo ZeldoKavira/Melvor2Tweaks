@@ -132,7 +132,7 @@ internal static class ItemsMenu
             "\"Bank & rules\" lists what you own plus every item with a rule; searching there covers every item in the game, " +
             "so you can set up items you haven't found yet.\n" +
             "Also available from an item's Sell panel in the bank.\n" +
-            "Categories: a rule for a whole bank category (logs, ores, gems...) covers every item in it, including ones you find later. " +
+            "Categories: a rule for a type of item (food, bones, chests...) or for everything a skill produces covers every item in it, including ones you find later. " +
             "An item's own rule wins; set an item to Never to leave it out of its category's rule."));
         header.AddChild(new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill });
         var close = TopBar.GameButton("Close");
@@ -351,28 +351,31 @@ internal static class ItemsMenu
         string q = s_search?.Text.Trim() ?? "";
         var all = TimeBank.TimeBank.Game?.Data.GetDataRegistryOutput<Item>().GetAllObjects().ToList() ?? new List<Item>();
         var cats = ItemRules.Categories()
-            .Where(c => q.Length == 0 || c.DisplayName.Text.Contains(q, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(c => ItemRules.GetCategory(c) == null).ThenBy(c => c.DisplayName.Text).ToList();
-        foreach (var cat in cats) s_rows!.AddChild(CategoryRow(cat, all.Where(i => ItemRules.HasTag(i, cat)).ToList()));
+            .Where(c => q.Length == 0 || c.Name.Contains(q, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(c => ItemRules.GetCategory(c) == null).ToList(); // then list order: types, then skills
+        foreach (var cat in cats)
+            if (all.Where(cat.Matches).ToList() is { Count: > 0 } members) s_rows!.AddChild(CategoryRow(cat, members));
         if (Valid(s_footer))
             s_footer!.Text = cats.Count == 0 ? "No categories match." :
                 $"{cats.Count} categories. A category rule covers every item in it; an item's own rule (or Never) wins.";
     }
 
-    private static Control CategoryRow(GamesByMalcs.Melvor2.Entities.Bank.BankTagCategory cat, List<Item> items)
+    private static Control CategoryRow(ItemCategory cat, List<Item> items)
     {
         var row = new HBoxContainer();
         row.AddThemeConstantOverride("separation", 10);
         row.AddChild(new TextureRect
         {
-            Texture = cat.Icon,
+            Texture = cat.Icon ?? items.FirstOrDefault()?.Icon,
             CustomMinimumSize = new Vector2(36, 36),
             ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
             StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
         });
         var names = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, Alignment = BoxContainer.AlignmentMode.Center };
         names.AddThemeConstantOverride("separation", 0);
-        var name = TopBar.RawLabel(cat.DisplayName.Text, 15, null);
+        var name = TopBar.RawLabel(cat.Name, 15, null);
+        name.MouseFilter = Control.MouseFilterEnum.Pass;
+        UiKit.AddTooltip(name, cat.Name, cat.Description);
         names.AddChild(name);
         var sample = string.Join(", ", items.Take(6).Select(i => i.DisplayName.Singular)) + (items.Count > 6 ? ", ..." : "");
         var sub = TopBar.RawLabel($"{items.Count} items: {sample}", 12, new Color(1, 1, 1, 0.55f));
@@ -406,7 +409,7 @@ internal static class ItemsMenu
             ItemRules.SetCategory(cat, (RuleAction)picker.GetItemId(picker.Selected), (int)keep.Value);
             int after = items.Sum(ItemRules.InBank);
             count.Text = after.ToString("N0");
-            if (before != after) SetStatus($"{cat.DisplayName.Text}: handled {before - after:N0} item(s)");
+            if (before != after) SetStatus($"{cat.Name}: handled {before - after:N0} item(s)");
         }
         picker.ItemSelected += _ => Changed();
         keep.ValueChanged += _ => { if (picker.GetItemId(picker.Selected) != (int)RuleAction.Off) Changed(); };

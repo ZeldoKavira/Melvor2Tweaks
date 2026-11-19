@@ -13,7 +13,8 @@ namespace Melvor2Tweaks.Features;
 /// </summary>
 internal static class FarmingTweaks
 {
-    private const int RetryEveryTicks = 100; // ~5 s at the game's tick rate
+    // Every 5 s of game time (the game runs 60 ticks/s; read it rather than assume).
+    private static int RetryEveryTicks => GamesByMalcs.Melvor2.Core.Constants.TicksPerSecond * 5;
     private static int s_counter;
 
     [HarmonyPatch(typeof(FarmingPassiveComponent), "OnTick")]

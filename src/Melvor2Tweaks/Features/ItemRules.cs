@@ -6,6 +6,8 @@ using GamesByMalcs.Melvor2;
 using GamesByMalcs.Melvor2.Components.Inventories;
 using GamesByMalcs.Melvor2.Components.ItemBurying;
 using GamesByMalcs.Melvor2.Data.Items;
+using GamesByMalcs.Melvor2.Components.Equipment;
+using GamesByMalcs.Melvor2.Components.CombatFood;
 using GamesByMalcs.Melvor2.Entities.Bank;
 using GamesByMalcs.Melvor2.GameMenus;
 using Godot;
@@ -18,6 +20,16 @@ public enum RuleAction { Off, Sell, Open, Bury, Never }
 
 /// <summary>What Keep starts at for an item that has no rule yet.</summary>
 public enum KeepDefault { Zero, One, AllButOne, All }
+
+/// <summary>A group of items a rule can cover.</summary>
+public sealed class ItemCategory(string key, string name, string description, Func<Item, bool> matches, Godot.Texture2D? icon = null)
+{
+    public string Key { get; } = key;
+    public string Name { get; } = name;
+    public string Description { get; } = description;
+    public Func<Item, bool> Matches { get; } = matches;
+    public Godot.Texture2D? Icon { get; } = icon;
+}
 
 public sealed class ItemRule
 {
@@ -61,7 +73,7 @@ internal static class ItemRules
     internal static string Label(Item item, RuleAction action, bool bank)
     {
         if (action == RuleAction.Off && CategoryRuleFor(item) is { } c)
-            return $"{(bank ? "Auto: " : "")}{c.category.DisplayName.Text} ({c.rule.Action.ToString().ToLowerInvariant()})";
+            return $"{(bank ? "Auto: " : "")}{c.category.Name} ({c.rule.Action.ToString().ToLowerInvariant()})";
         return action switch
         {
             RuleAction.Off => bank ? "Auto: off" : "Off",
@@ -80,34 +92,62 @@ internal static class ItemRules
         return CategoryRuleFor(item)?.rule;
     }
 
-    // ---- categories (the game's bank tags: logs, ores, gems...) -----------------------------------
-    internal static IEnumerable<BankTagCategory> Categories() =>
-        TimeBank.TimeBank.Game?.Data.GetDataRegistryOutput<BankTagCategory>().GetAllObjects() ?? Enumerable.Empty<BankTagCategory>();
+    // ---- categories ------------------------------------------------------------------------------
+    // Item types (from the item's capabilities) come first, then "From <skill>": the game's bank tags
+    // where the item is a product of that skill (its "used by" tags are ignored - far too broad).
+    private static List<ItemCategory>? s_categories;
 
-    internal static bool HasTag(Item item, BankTagCategory category) => item.BankTags.Any(t => t.BankTag == category);
+    internal static IReadOnlyList<ItemCategory> Categories()
+    {
+        if (s_categories != null) return s_categories;
+        var list = new List<ItemCategory>
+        {
+            new("type:Food", "Food", "Items you can eat.", i => i.Capabilities.TryGet<FoodCapability>(out _)),
+            new("type:Openable", "Openable", "Chests, nests and other containers.", CanOpen),
+            new("type:Buryable", "Buryable", "Bones and other items you can bury.", CanBury),
+            new("type:Weapon", "Weapons", "Equippable weapons.", i => i.Capabilities.TryGet<WeaponCapability>(out _)),
+            new("type:Equipment", "Equipment", "Anything you can equip (weapons, armour, ammo, jewellery).", i => i.Capabilities.TryGet<EquipmentCapability>(out _)),
+            new("type:Compost", "Compost", "Farming compost.", i => i.Capabilities.TryGet<CompostCapability>(out _)),
+            new("type:Bait", "Fishing bait", "Bait for fishing.", i => i.Capabilities.TryGet<FishingBaitCapability>(out _)),
+            new("type:Trap", "Hunting traps", "Traps for hunting.", i => i.Capabilities.TryGet<HuntingTrapCapability>(out _)),
+            new("type:Unused", "Not used by any skill", "Items no skill, shop or quest uses as an ingredient, and that aren't food, equipment or toolbelt items.",
+                i => !i.BankTags.Any(t => t.IsIngredient) && !i.Capabilities.TryGet<FoodCapability>(out _) &&
+                     !i.Capabilities.TryGet<EquipmentCapability>(out _) && !i.Capabilities.TryGet<GamesByMalcs.Melvor2.Components.Toolbelt.ToolbeltCapability>(out _)),
+        };
+        var game = TimeBank.TimeBank.Game;
+        if (game != null)
+            foreach (var tag in game.Data.GetDataRegistryOutput<BankTagCategory>().GetAllObjects().OrderBy(t => t.DisplayName.Text))
+            {
+                var t = tag; string id = tag.Id;
+                list.Add(new("from:" + t.Id, "From " + t.DisplayName.Text, $"Everything {t.DisplayName.Text} produces or drops.",
+                    i => i.BankTags.Any(b => b.IsProduct && b.BankTag.Id == id), t.Icon));
+            }
+        if (game != null) s_categories = list;
+        return list;
+    }
 
-    internal static ItemRule? GetCategory(BankTagCategory category) =>
-        Settings.Current.CategoryRules.TryGetValue(category.Id, out var r) ? r : null;
+    internal static ItemRule? GetCategory(ItemCategory category) =>
+        Settings.Current.CategoryRules.TryGetValue(category.Key, out var r) ? r : null;
 
-    /// <summary>First of the item's categories with a rule the item supports.</summary>
-    internal static (BankTagCategory category, ItemRule rule)? CategoryRuleFor(Item item)
+    /// <summary>First category (in list order) with a rule this item is in and supports.</summary>
+    internal static (ItemCategory category, ItemRule rule)? CategoryRuleFor(Item item)
     {
         if (Settings.Current.CategoryRules.Count == 0) return null;
-        foreach (var tag in item.BankTags)
-            if (Settings.Current.CategoryRules.TryGetValue(tag.BankTag.Id, out var rule) && Supports(item, rule.Action))
-                return (tag.BankTag, rule);
+        foreach (var c in Categories())
+            if (Settings.Current.CategoryRules.TryGetValue(c.Key, out var rule) && Supports(item, rule.Action) && c.Matches(item))
+                return (c, rule);
         return null;
     }
 
-    internal static void SetCategory(BankTagCategory category, RuleAction action, int keep)
+    internal static void SetCategory(ItemCategory category, RuleAction action, int keep)
     {
         var rules = Settings.Current.CategoryRules;
-        if (action is RuleAction.Off or RuleAction.Never) rules.Remove(category.Id);
-        else rules[category.Id] = new ItemRule { Action = action, Keep = Math.Max(0, keep) };
+        if (action is RuleAction.Off or RuleAction.Never) rules.Remove(category.Key);
+        else rules[category.Key] = new ItemRule { Action = action, Keep = Math.Max(0, keep) };
         Settings.Save();
-        Plugin.Log($"Category rule: {category.Id} = {action} keep {keep}");
+        Plugin.Log($"Category rule: {category.Key} = {action} keep {keep}");
         if (Bank is BankEntity bank)
-            foreach (var item in bank.Inventory.Stacks.Select(s => s.Item).Where(i => HasTag(i, category)).Distinct().ToList())
+            foreach (var item in bank.Inventory.Stacks.Select(s => s.Item).Where(category.Matches).Distinct().ToList())
                 Apply(item);
         Changed?.Invoke();
     }
