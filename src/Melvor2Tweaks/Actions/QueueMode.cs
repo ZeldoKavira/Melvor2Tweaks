@@ -129,6 +129,9 @@ internal static class QueueMode
             else if (!hadRestore && started.IsStarted)
             {
                 started.TryStop();
+                // Nothing was running: rather than sit idle, start the queue (its first entry).
+                string why = ActionQueue.StartIfIdle();
+                if (why.Length > 0) status += " " + why;
             }
         }
         finally { Internal = false; }

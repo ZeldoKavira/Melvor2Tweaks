@@ -28,6 +28,7 @@ internal static class ActionsMenu
     private static OptionButton? s_kind;
     private static SpinBox? s_value;
     private static CheckBox? s_enabled;
+    private static Button? s_start;
     private static CheckBox? s_queueMode;
     private static VBoxContainer? s_list;
     private static Label? s_status;
@@ -109,7 +110,7 @@ internal static class ActionsMenu
             n.QueueFree();
         }
         s_button = null; s_buttonLabel = null; s_popup = null; s_panel = null; s_current = null; s_rule = null;
-        s_kind = null; s_value = null; s_enabled = null; s_queueMode = null; s_list = null; s_status = null; s_listSignature = null;
+        s_kind = null; s_value = null; s_enabled = null; s_start = null; s_queueMode = null; s_list = null; s_status = null; s_listSignature = null;
     }
 
     private static PanelContainer BuildPanel()
@@ -139,7 +140,7 @@ internal static class ActionsMenu
             "Queue mode: click any skill's normal button to queue it instead; your current action keeps going (its progress bar restarts).\n" +
             "Limits: \"Until it stops\" runs until the game stops it; \"Until level\" uses each skill's next milestone; \"For N items\" counts products, not side drops.\n" +
             "When the running action stops by itself - limit reached, out of materials, bank full, no traps - the next queued action starts. " +
-            "Your own Stop does not advance the queue.");
+            "Your own Stop does not advance the queue. When nothing is running, press Start (or tick Run queue) to begin it.");
         header.AddChild(help);
         body.AddChild(header);
 
@@ -177,8 +178,16 @@ internal static class ActionsMenu
         queueHeader.AddChild(TopBar.RawLabel("Queue", 18, Gold));
         queueHeader.AddChild(new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill });
         s_enabled = new CheckBox { Text = "Run queue", FocusMode = Control.FocusModeEnum.None, AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled };
-        s_enabled.Toggled += on => ActionQueue.SetEnabled(on);
+        s_enabled.Toggled += on =>
+        {
+            ActionQueue.SetEnabled(on);
+            if (on) StartQueue();
+        };
         queueHeader.AddChild(s_enabled);
+        s_start = TopBar.GameButton("Start");
+        s_start.Pressed += StartQueue;
+        UiKit.AddTooltip(s_start, "Start queue", "Nothing is running: start the first queued action now.");
+        queueHeader.AddChild(s_start);
         var clear = TopBar.GameButton("Clear");
         clear.Pressed += ActionQueue.Clear;
         queueHeader.AddChild(clear);
@@ -224,6 +233,14 @@ internal static class ActionsMenu
         ShadowColor = new Color(0, 0, 0, 0.5f),
         ShadowSize = 8,
     };
+
+    private static void StartQueue()
+    {
+        if (ActionQueue.State is { Enabled: false }) ActionQueue.SetEnabled(true);
+        string status = ActionQueue.StartIfIdle();
+        if (status.Length > 0) ShowStatus(status);
+        Refresh();
+    }
 
     private static void ShowStatus(string text)
     {
@@ -275,6 +292,7 @@ internal static class ActionsMenu
             _ => "Runs until it stops",
         };
         s_enabled!.SetPressedNoSignal(state?.Enabled ?? true);
+        if (Valid(s_start)) s_start!.Visible = queued > 0 && running is not { IsStarted: true };
 
         // Rebuild the list only when it changed (keeps buttons stable under the mouse).
         string sig = string.Join("|", state?.Entries.ConvertAll(e => e.Describe()) ?? new List<string>());

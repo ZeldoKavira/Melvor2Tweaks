@@ -273,10 +273,27 @@ internal static class ActionQueue
         }
     }
 
-    private static void Advance(Game game)
+    /// <summary>
+    /// Starts the next queued entry when nothing is running (the queue otherwise only advances when a
+    /// running action stops by itself). Returns a status line for the menu, or "" when nothing to say.
+    /// </summary>
+    internal static string StartIfIdle()
     {
         var state = State;
-        if (state == null || !state.Enabled) return;
+        var game = TimeBank.TimeBank.Game;
+        if (state == null || game == null || !state.Enabled || state.Entries.Count == 0) return "";
+        if (RunningAction is { IsStarted: true }) return "";
+        s_lastSkip = "";
+        if (Advance(game) != null) return "";
+        return $"Nothing in the queue could start, so it was emptied. Last: {s_lastSkip}";
+    }
+
+    private static string s_lastSkip = "";
+
+    private static QueueEntry? Advance(Game game)
+    {
+        var state = State;
+        if (state == null || !state.Enabled) return null;
         while (state.Entries.Count > 0)
         {
             var entry = state.Entries[0];
@@ -292,10 +309,12 @@ internal static class ActionQueue
                 state.Current = entry.Stop == StopKind.None ? null : entry;
                 if (RunningAction is ActionComponent running) Arm(running, state.Current);
                 Save();
-                return;
+                return entry;
             }
-            Plugin.Log($"Queue: skipped {entry.Target.Label} ({reason})");
+            s_lastSkip = $"{entry.Target.Label} ({reason})";
+            Plugin.Log($"Queue: skipped {s_lastSkip}");
         }
         Save();
+        return null;
     }
 }

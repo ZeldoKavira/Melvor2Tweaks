@@ -183,6 +183,9 @@ internal static class DevCommands
                 }).CallDeferred();
                 break;
             }
+            case "queue-start":
+                Plugin.Log("queue-start: [" + Actions.ActionQueue.StartIfIdle() + "] running " + (Actions.ActionQueue.RunningAction?.Entity.Id ?? "none"));
+                break;
             case "queue-pop-last":
                 if (Actions.ActionQueue.State is { Entries.Count: > 0 } st) Actions.ActionQueue.RemoveAt(st.Entries.Count - 1);
                 break;
