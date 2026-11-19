@@ -389,6 +389,18 @@ internal static class DevCommands
                 if (TimeBank.TimeBank.Game is { } pg && pg.Data.TryGetObject<GamesByMalcs.Melvor2.Data.Items.Item>(pr.Substring(9), out var pit))
                     Plugin.Log($"producer {pit.Id}: {(Actions.Gather.Producer(pg, pit) is { } t ? t.EntityId + " / " + string.Join(",", t.Ids) : "none")}");
                 break;
+            case var qr when qr.StartsWith("queue-remove:"):
+            {
+                // queue-remove:<label>|<stopValue> - removes the last entry matching exactly
+                var parts = qr.Substring("queue-remove:".Length).Split('|');
+                if (Actions.ActionQueue.State is { } rs)
+                {
+                    int i = rs.Entries.FindLastIndex(e => e.Target.Label == parts[0] && e.StopValue == int.Parse(parts[1]));
+                    if (i >= 0) { Plugin.Log("queue-remove: " + rs.Entries[i].Describe()); Actions.ActionQueue.RemoveAt(i); }
+                    else Plugin.Log("queue-remove: no match");
+                }
+                break;
+            }
             case "upgrade-list":
             {
                 // Bank items with an upgrade, its costs, and whether an unlocked action makes each cost item.

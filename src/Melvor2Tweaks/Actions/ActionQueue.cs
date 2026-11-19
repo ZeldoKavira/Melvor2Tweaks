@@ -256,6 +256,7 @@ internal static class ActionQueue
     {
         if (State is not { } state) return;
         state.Entries.Add(entry);
+        Plugin.Log("Queue: added " + entry.Describe());
         Save();
     }
 
@@ -267,11 +268,18 @@ internal static class ActionQueue
         var target = action == null ? null : SkillActions.Capture(action);
         if (state == null || target == null) { reason = "Start the action you want to queue first."; return false; }
         state.Entries.Add(new QueueEntry { Target = target, Stop = kind, StopValue = value });
+        Plugin.Log("Queue: added " + state.Entries[^1].Describe());
         Save();
         return true;
     }
 
-    internal static void RemoveAt(int i) { if (State is { } s && i >= 0 && i < s.Entries.Count) { s.Entries.RemoveAt(i); Save(); } }
+    internal static void RemoveAt(int i)
+    {
+        if (State is not { } s || i < 0 || i >= s.Entries.Count) return;
+        Plugin.Log($"Queue: removed #{i + 1} {s.Entries[i].Describe()}");
+        s.Entries.RemoveAt(i);
+        Save();
+    }
 
     internal static void MoveUp(int i)
     {
@@ -292,7 +300,13 @@ internal static class ActionQueue
         Save();
     }
 
-    internal static void Clear() { if (State is { } s) { s.Entries.Clear(); Save(); } }
+    internal static void Clear()
+    {
+        if (State is not { } s) return;
+        Plugin.Log("Queue: cleared [" + string.Join("; ", s.Entries.Select(e => e.Describe())) + "]");
+        s.Entries.Clear();
+        Save();
+    }
 
     internal static void SetEnabled(bool on) { if (State is { } s) { s.Enabled = on; Save(); } }
 
