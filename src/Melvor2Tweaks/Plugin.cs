@@ -10,7 +10,7 @@ namespace Melvor2Tweaks;
 /// </summary>
 public static class Plugin
 {
-    public const string Version = "0.11.4";
+    public const string Version = "0.12.0";
     public const string HarmonyId = "net.zeldo.melvor2tweaks";
 
     private static HarmonyLib.Harmony? s_harmony;
@@ -36,6 +36,7 @@ public static class Plugin
         try { UI.SettingsTab.AttachToExisting(); } catch (Exception e) { Log("Settings tab: " + e); }
         try { UI.FarmingButtons.AttachToExisting(); } catch (Exception e) { Log("Farming buttons: " + e); }
         try { Features.ItemRules.AttachToExisting(); } catch (Exception e) { Log("Item rules: " + e); }
+        try { Features.QueueFromCost.AttachToExisting(); } catch (Exception e) { Log("Queue from cost: " + e); }
     }
 
     public static void ModUnload()
@@ -48,6 +49,7 @@ public static class Plugin
         try { Actions.QueueMode.Shutdown(); } catch (Exception e) { Log("Queue mode teardown: " + e.Message); }
         try { UI.SettingsTab.DetachAll(); } catch (Exception e) { Log("Settings tab teardown: " + e.Message); }
         try { UI.FarmingButtons.DetachAll(); } catch (Exception e) { Log("Farming buttons teardown: " + e.Message); }
+        try { Features.QueueFromCost.DetachAll(); } catch (Exception e) { Log("Queue-from-cost teardown: " + e.Message); }
         try { Features.ItemRules.DetachAll(); } catch (Exception e) { Log("Item rules teardown: " + e.Message); }
         s_harmony?.UnpatchAll(HarmonyId);
         s_harmony = null;

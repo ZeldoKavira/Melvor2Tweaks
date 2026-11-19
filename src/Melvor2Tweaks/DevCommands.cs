@@ -345,6 +345,65 @@ internal static class DevCommands
             case var dt when dt.StartsWith("drag-test:"):
                 UI.ActionsMenu.DevDrag(int.Parse(dt.Split(':')[1]), int.Parse(dt.Split(':')[2]), dt.Split(':').Length > 3 ? double.Parse(dt.Split(':')[3]) : 0);
                 break;
+            case var uc when uc.StartsWith("upgrades-costing:"):
+            {
+                string costId = uc.Substring("upgrades-costing:".Length);
+                var g2 = TimeBank.TimeBank.Game!;
+                int shown = 0;
+                foreach (var up in g2.Data.GetDataRegistryOutput<GamesByMalcs.Melvor2.Components.ItemUpgrading.ItemUpgrade>().GetAllObjects())
+                {
+                    if (!up.Costs.Items.Any(c => c.Item.Id == costId) || shown++ > 12) continue;
+                    Plugin.Log($"upgrade-costing: -> {up.UpgradedItem.Id} roots [{string.Join(",", up.RootItems.Select(r => r.Id + "(" + Features.ItemRules.InBank(r) + ")"))}] costs " +
+                               string.Join(", ", up.Costs.Items.Select(c => $"{c.Quantity} {c.Item.Id}")));
+                }
+                break;
+            }
+            case var pq when pq.StartsWith("press-queue-cost:"):
+            {
+                string itemId = pq.Substring("press-queue-cost:".Length);
+                foreach (var view in UI.NodeSearch.All<GamesByMalcs.Melvor2.Core.CostTracking.ItemCostTrackerView>())
+                {
+                    var tr = HarmonyLib.Traverse.Create(view).Property("Tracker").GetValue<GamesByMalcs.Melvor2.Core.CostTracking.ItemCostTracker>();
+                    if (tr?.Item.Id != itemId || view.FindChild("Melvor2TweaksQueueCost", true, false) is not Godot.Button qb || !qb.Visible) continue;
+                    int before = Actions.ActionQueue.State?.Entries.Count ?? 0;
+                    qb.EmitSignal(Godot.BaseButton.SignalName.Pressed);
+                    var added = Actions.ActionQueue.State is { } qs2 && qs2.Entries.Count > before ? qs2.Entries[^1] : null;
+                    Plugin.Log("press-queue-cost: added " + (added?.Describe() ?? "nothing"));
+                    if (added != null) { Actions.ActionQueue.State!.Entries.Remove(added); Actions.ActionQueue.Save(); Plugin.Log("press-queue-cost: removed the test entry again"); }
+                    break;
+                }
+                break;
+            }
+            case var qa when qa.StartsWith("queue-add:"):
+            {
+                // queue-add:<ns>:<entity>:<ns>:<id>:<stop 0|1|2>:<value>:<label>
+                var p = qa.Split(':', 8);
+                Actions.ActionQueue.Add(new Actions.QueueEntry
+                {
+                    Target = new Actions.ActionTarget { EntityId = p[1] + ":" + p[2], Ids = new[] { p[3] + ":" + p[4] }, Label = p.Length > 7 ? p[7] : "" },
+                    Stop = (Actions.StopKind)int.Parse(p[5]), StopValue = int.Parse(p[6]),
+                });
+                break;
+            }
+            case var pr when pr.StartsWith("producer:"):
+                if (TimeBank.TimeBank.Game is { } pg && pg.Data.TryGetObject<GamesByMalcs.Melvor2.Data.Items.Item>(pr.Substring(9), out var pit))
+                    Plugin.Log($"producer {pit.Id}: {(Actions.Gather.Producer(pg, pit) is { } t ? t.EntityId + " / " + string.Join(",", t.Ids) : "none")}");
+                break;
+            case "upgrade-list":
+            {
+                // Bank items with an upgrade, its costs, and whether an unlocked action makes each cost item.
+                var bank = Features.ItemRules.Bank;
+                var g = TimeBank.TimeBank.Game;
+                if (bank == null || g == null) break;
+                foreach (var ust in bank.Inventory.Stacks.ToList())
+                {
+                    if (!bank.ItemUpgrading.ItemHasUpgrade(ust.Item)) continue;
+                    foreach (var up in bank.ItemUpgrading.GetUpgradesForItem(ust.Item))
+                        Plugin.Log($"upgrade {ust.Item.Id} -> {up.UpgradedItem.Id}: " + string.Join(", ", up.Costs.Items.Select(c =>
+                            $"{c.Quantity} {c.Item.Id} (have {Features.ItemRules.InBank(c.Item)}, made by {Actions.Gather.Producer(g, c.Item)?.Label ?? "nothing unlocked"})")));
+                }
+                break;
+            }
             case "tick-rate":
                 Plugin.Log($"tick-rate: {GamesByMalcs.Melvor2.Core.Constants.TicksPerSecond}/s, interval {GamesByMalcs.Melvor2.Core.Constants.TickInterval} ms");
                 break;
