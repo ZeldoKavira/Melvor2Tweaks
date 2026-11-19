@@ -371,49 +371,174 @@ internal static class ActionsMenu
     }
 
     // ---- drag and drop -----------------------------------------------------------------------------
-    private static readonly Color DropLine = new(0.98f, 0.8f, 0.3f);
+    private static readonly Color DropGold = new(0.98f, 0.8f, 0.3f);
     private static readonly List<PanelContainer> s_dragRows = new();
+    private static Panel? s_dropBar;          // glowing bar floating over the list where the entry will land
+    private static StyleBoxFlat? s_dropBarStyle;
+    private static Tween? s_barTween, s_pulseTween;
+    private static int s_dropSlot = -1;
+    private static PanelContainer? s_dragged;
+    private static Timer? s_dragWatch;
+    private static int s_flashIndex = -1;
 
     /// <summary>
     /// Wraps a queue row so it can be dragged onto another row, taking that row's place (so it lands below
     /// it when dragged down, above it when dragged up). Uses Control.SetDragForwarding, so no Godot
-    /// subclass is needed. A gold line marks where it will go.
+    /// subclass is needed. While dragging: the row fades, a card follows the mouse, and a glowing gold bar
+    /// glides to where it will land. After the drop the moved row flashes gold.
     /// </summary>
     private static PanelContainer DragRow(HBoxContainer row, int index, string text)
     {
         var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Stop, MouseDefaultCursorShape = Control.CursorShape.Move };
-        var style = new StyleBoxFlat { BgColor = new Color(0, 0, 0, 0), BorderColor = DropLine, ContentMarginTop = 2, ContentMarginBottom = 2 };
+        var style = new StyleBoxFlat
+        {
+            BgColor = new Color(DropGold, 0f), ContentMarginTop = 2, ContentMarginBottom = 2, ContentMarginLeft = 4, ContentMarginRight = 0,
+            CornerRadiusTopLeft = 4, CornerRadiusTopRight = 4, CornerRadiusBottomLeft = 4, CornerRadiusBottomRight = 4,
+        };
         panel.AddThemeStyleboxOverride("panel", style);
         panel.AddChild(row);
         s_dragRows.Add(panel);
+        if (index == s_flashIndex) { s_flashIndex = -1; Flash(panel, style); }
 
         panel.SetDragForwarding(
             Callable.From((Vector2 _) =>
             {
-                var preview = TopBar.RawLabel(text, 14, DropLine);
-                panel.SetDragPreview(preview);
+                panel.SetDragPreview(DragCard(text, panel.Size.X));
+                BeginDrag(panel);
                 return Variant.From(index);
             }),
             Callable.From((Vector2 at, Variant data) =>
             {
                 if (data.VariantType != Variant.Type.Int) return false;
                 int from = data.AsInt32();
-                if (from == index) { ClearDropLines(); return true; }
-                ShowDropLine(panel, top: from > index); // moving up lands above the row, moving down below it
+                // Moving up lands above the row, moving down below it; over itself: nowhere.
+                MoveDropBar(from == index ? -1 : from > index ? index : index + 1);
                 return true;
             }),
             Callable.From((Vector2 at, Variant data) =>
             {
-                ClearDropLines();
                 int from = data.AsInt32();
+                EndDrag();
                 if (s_timing) Plugin.Log($"drop: from {from} onto row {index}");
-                ActionQueue.Move(from, index); // takes that row's place: below it when moving down, above when moving up
+                if (from == index) return;
+                s_flashIndex = index;
+                ActionQueue.Move(from, index);
             }));
         return panel;
     }
 
+    /// <summary>The card that follows the mouse: the entry on a dark panel with a gold border.</summary>
+    private static Control DragCard(string text, float width)
+    {
+        var card = new PanelContainer { Modulate = new Color(1, 1, 1, 0.92f), Rotation = -0.02f };
+        card.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        {
+            BgColor = new Color(0.14f, 0.12f, 0.10f, 0.97f), BorderColor = DropGold,
+            BorderWidthLeft = 2, BorderWidthTop = 2, BorderWidthRight = 2, BorderWidthBottom = 2,
+            CornerRadiusTopLeft = 6, CornerRadiusTopRight = 6, CornerRadiusBottomLeft = 6, CornerRadiusBottomRight = 6,
+            ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 6, ContentMarginBottom = 6,
+            ShadowColor = new Color(0, 0, 0, 0.55f), ShadowSize = 10, ShadowOffset = new Vector2(3, 4),
+        });
+        card.CustomMinimumSize = new Vector2(Math.Max(240, width * 0.75f), 0);
+        card.AddChild(TopBar.RawLabel(text, 15, DropGold));
+        return card;
+    }
+
+    private static void BeginDrag(PanelContainer source)
+    {
+        s_dragged = source;
+        source.CreateTween().TweenProperty(source, "modulate:a", 0.3f, 0.12f);
+        s_dropSlot = -1;
+        if (!Valid(s_dragWatch) && Valid(s_panel))
+        {
+            s_dragWatch = new Timer { WaitTime = 0.05, ProcessMode = Node.ProcessModeEnum.Always };
+            s_dragWatch.Timeout += () => { if (Valid(s_panel) && !s_panel!.GetViewport().GuiIsDragging()) EndDrag(); };
+            s_panel!.AddChild(s_dragWatch);
+        }
+        s_dragWatch?.Start();
+    }
+
+    private static void EndDrag()
+    {
+        if (Valid(s_dragWatch)) s_dragWatch!.Stop();
+        if (Valid(s_dragged)) s_dragged!.CreateTween().TweenProperty(s_dragged, "modulate:a", 1f, 0.15f);
+        s_dragged = null;
+        s_dropSlot = -1;
+        s_barTween?.Kill();
+        s_pulseTween?.Kill();
+        if (Valid(s_dropBar)) s_dropBar!.Visible = false;
+    }
+
+    private static Panel? DropBar()
+    {
+        if (Valid(s_dropBar)) return s_dropBar;
+        if (!Valid(s_panel)) return null;
+        s_dropBarStyle = new StyleBoxFlat
+        {
+            BgColor = DropGold,
+            CornerRadiusTopLeft = 3, CornerRadiusTopRight = 3, CornerRadiusBottomLeft = 3, CornerRadiusBottomRight = 3,
+            ShadowColor = new Color(DropGold, 0.75f), ShadowSize = 6,
+        };
+        // Top level: floats over the list without pushing rows around (which would move the target under the mouse).
+        s_dropBar = new Panel { TopLevel = true, MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false, ZIndex = 10 };
+        s_dropBar.AddThemeStyleboxOverride("panel", s_dropBarStyle);
+        s_panel!.AddChild(s_dropBar);
+        return s_dropBar;
+    }
+
+    /// <summary>Glides the bar to the gap before row <paramref name="slot"/> (Count = after the last row); -1 hides it.</summary>
+    private static void MoveDropBar(int slot)
+    {
+        if (slot == s_dropSlot) return;
+        var bar = DropBar();
+        if (bar == null || s_dragRows.Count == 0) return;
+        bool wasHidden = !bar.Visible || s_dropSlot < 0;
+        s_dropSlot = slot;
+        if (slot < 0) { s_barTween?.Kill(); s_pulseTween?.Kill(); bar.Visible = false; return; }
+
+        var first = s_dragRows[0].GetGlobalRect();
+        float y = slot < s_dragRows.Count
+            ? s_dragRows[slot].GetGlobalRect().Position.Y - 2
+            : s_dragRows[^1].GetGlobalRect().End.Y + 2;
+        var size = new Vector2(first.Size.X, 4);
+        var target = new Vector2(first.Position.X, y - size.Y / 2);
+        bar.Size = size;
+        bar.PivotOffset = size / 2;
+
+        s_barTween?.Kill();
+        s_barTween = bar.CreateTween().SetParallel().SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Cubic);
+        if (wasHidden)
+        {
+            bar.GlobalPosition = target;
+            bar.Scale = new Vector2(0.1f, 1);
+            bar.Visible = true;
+            s_barTween.TweenProperty(bar, "scale", Vector2.One, 0.18f);
+        }
+        else
+        {
+            s_barTween.TweenProperty(bar, "global_position", target, 0.12f);
+        }
+
+        if (s_pulseTween == null || !s_pulseTween.IsValid() || !s_pulseTween.IsRunning())
+        {
+            s_pulseTween = bar.CreateTween().SetLoops().SetTrans(Tween.TransitionType.Sine);
+            s_pulseTween.TweenProperty(s_dropBarStyle, "shadow_size", 12, 0.45f);
+            s_pulseTween.Parallel().TweenProperty(bar, "modulate:a", 0.65f, 0.45f);
+            s_pulseTween.TweenProperty(s_dropBarStyle, "shadow_size", 4, 0.45f);
+            s_pulseTween.Parallel().TweenProperty(bar, "modulate:a", 1f, 0.45f);
+        }
+    }
+
+    /// <summary>The moved row lights up gold and fades back.</summary>
+    private static void Flash(PanelContainer panel, StyleBoxFlat style)
+    {
+        style.BgColor = new Color(DropGold, 0.45f);
+        panel.CreateTween().SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Quad)
+            .TweenProperty(style, "bg_color", new Color(DropGold, 0f), 0.9f);
+    }
+
     /// <summary>Dev aid: drags row <paramref name="from"/> onto the top half of row <paramref name="onto"/> with real mouse events.</summary>
-    internal static async void DevDrag(int from, int onto)
+    internal static async void DevDrag(int from, int onto, double holdSeconds = 0)
     {
         if (from >= s_dragRows.Count || onto >= s_dragRows.Count || !Valid(s_dragRows[from])) { Plugin.Log("drag-test: rows not there (open the Actions menu)"); return; }
         var vp = s_dragRows[from].GetViewport();
@@ -435,26 +560,10 @@ internal static class ActionsMenu
         }
         await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
         Plugin.Log($"drag-test: dragging={vp.GuiIsDragging()}");
+        if (holdSeconds > 0) await tree.ToSignal(tree.CreateTimer(holdSeconds), SceneTreeTimer.SignalName.Timeout);
         Push(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false, Position = canvas * target, GlobalPosition = canvas * target });
         await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
         Plugin.Log("drag-test: queue now " + string.Join(" | ", ActionQueue.State?.Entries.ConvertAll(e => e.Target.Label + " " + e.StopValue) ?? new()));
-    }
-
-    private static void ShowDropLine(PanelContainer target, bool top)
-    {
-        foreach (var p in s_dragRows)
-        {
-            if (!Valid(p) || p.GetThemeStylebox("panel") is not StyleBoxFlat st) continue;
-            bool on = ReferenceEquals(p, target);
-            st.BorderWidthTop = on && top ? 2 : 0;
-            st.BorderWidthBottom = on && !top ? 2 : 0;
-        }
-    }
-
-    private static void ClearDropLines()
-    {
-        foreach (var p in s_dragRows)
-            if (Valid(p) && p.GetThemeStylebox("panel") is StyleBoxFlat st) { st.BorderWidthTop = 0; st.BorderWidthBottom = 0; }
     }
 
     internal static void ToggleLog()
@@ -619,7 +728,6 @@ internal static class ActionsMenu
         s_enabled!.SetPressedNoSignal(state?.Enabled ?? true);
         if (Valid(s_loop)) s_loop!.SetPressedNoSignal(state?.Loop ?? false);
         RefreshPresets();
-        if (Valid(s_list) && !s_list!.GetViewport().GuiIsDragging()) ClearDropLines();
         if (Valid(s_logBody) && s_logBody!.Visible) RefreshLog();
         if (Valid(s_start)) s_start!.Visible = queued > 0 && running is not { IsStarted: true };
 
