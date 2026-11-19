@@ -139,7 +139,8 @@ internal static class TopBar
         s_bankLabel = RawLabel("", 20, new Color(0.98f, 0.8f, 0.3f));
         body.AddChild(s_bankLabel);
 
-        body.AddChild(RawLabel("Skip ahead using banked time", 15, null));
+        s_skipHint = RawLabel("Skip ahead using banked time", 15, null);
+        body.AddChild(s_skipHint);
         var skipRow = new HBoxContainer();
         body.AddChild(skipRow);
         foreach (var (label, ms) in SkipPresets)
@@ -225,8 +226,16 @@ internal static class TopBar
         Refresh();
     }
 
+    private static Label? s_skipHint;
+
     private static void Refresh()
     {
+        if (Valid(s_skipHint))
+        {
+            double sp = TimeBank.TimeBank.SkipSpeed;
+            s_skipHint!.Text = sp > 1 ? $"Skip ahead using banked time - at {sp:0.##}x, each hour runs {sp:0.##} hours of game time"
+                                      : "Skip ahead using banked time";
+        }
         if (!Valid(s_button)) return;
         var s = Settings.Current;
         double banked = TimeBankStore.BankedMs;

@@ -298,6 +298,34 @@ internal static class DevCommands
                 TimeBank.TimeBankStore.Deposit(double.Parse(ba.Substring("bank-add:".Length)) * 60_000, TimeBank.TimeBankStore.CreditedUntil);
                 Plugin.Log($"bank-add: bank now {TimeBank.TimeBank.Format(TimeBank.TimeBankStore.BankedMs)}");
                 break;
+            case var rh when rh.StartsWith("run-hours:"):
+                // run-hours:<h> - run game time through the game's offline progress, without touching the bank
+                TimeBank.TimeBank.Game?.RequestOfflineHours(double.Parse(rh.Substring("run-hours:".Length)));
+                break;
+            case "override-test":
+            {
+                // Like the player clicking Mine on a rock while a queue entry runs, then Stop, then Start queue.
+                bool qmWas = Actions.QueueMode.Enabled;
+                Actions.QueueMode.Enabled = false;
+                var game = TimeBank.TimeBank.Game!;
+                Plugin.Log($"override-test: before, running {Actions.ActionQueue.State?.Current?.Describe()} progress {Actions.ActionQueue.ItemProgress}, front {Actions.ActionQueue.State?.Entries.FirstOrDefault()?.Describe()}");
+                if (Actions.ActionQueue.RunningAction is GamesByMalcs.Melvor2.Entities.Woodcutting.WoodcuttingActionComponent wcSame)
+                {
+                    foreach (var t in wcSame.Trees.Values) if (t.Recipe.Requirements.AreMet && t != wcSame.CuttingTree) { wcSame.SelectTree(t); break; }
+                }
+                else
+                {
+                    game.Entities.TryGetObjectById("MelvorBase:Mining", out var mEntity);
+                    var m = (GamesByMalcs.Melvor2.Entities.Mining.MiningActionComponent)mEntity!.Components["Action"];
+                    foreach (var r in m.Rocks.Values) if (r.Recipe.Requirements.AreMet) { m.SelectRock(r); break; }
+                }
+                Plugin.Log($"override-test: after override, running {Actions.ActionQueue.RunningAction?.Entity.Id}, front {Actions.ActionQueue.State?.Entries.FirstOrDefault()?.Describe()}");
+                Actions.ActionQueue.RunningAction?.TryStop();
+                string why = Actions.ActionQueue.StartIfIdle();
+                Plugin.Log($"override-test: resumed [{why}] running {Actions.ActionQueue.State?.Current?.Describe()}");
+                Actions.QueueMode.Enabled = qmWas;
+                break;
+            }
             case "tick-rate":
                 Plugin.Log($"tick-rate: {GamesByMalcs.Melvor2.Core.Constants.TicksPerSecond}/s, interval {GamesByMalcs.Melvor2.Core.Constants.TickInterval} ms");
                 break;

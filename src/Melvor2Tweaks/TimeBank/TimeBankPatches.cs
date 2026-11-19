@@ -118,23 +118,31 @@ internal static class TimeBank
     }
 
     // ---- spending ---------------------------------------------------------------------------------
-    /// <summary>Simulates up to <paramref name="ms"/> of banked time. Returns the amount spent (0 = nothing happened).</summary>
+    /// <summary>Current speed multiplier as a skip uses it (1x..100x).</summary>
+    internal static double SkipSpeed => Math.Clamp(Settings.Current.Speed, 1, 100);
+
+    /// <summary>
+    /// Spends up to <paramref name="ms"/> of banked time, running it at the current speed: at 5x, 1h of bank
+    /// runs 5h of game time. Returns the banked time spent (0 = nothing happened).
+    /// </summary>
     internal static double Spend(double ms, out string reason)
     {
         Game? game = Game;
         if (game == null || !IsProcessing) { reason = "Not available right now"; return 0; }
 
+        double speed = SkipSpeed;
         double cap = game.OfflineProgress.Component.MaxOfflineTime; // the game caps one offline run at this
-        double amount = Math.Min(Math.Min(ms, TimeBankStore.BankedMs), cap);
-        if (amount < MinRunMs) { reason = "Not enough banked time"; return 0; }
+        double gameTime = Math.Min(Math.Min(ms, TimeBankStore.BankedMs) * speed, cap);
+        double fromBank = gameTime / speed;
+        if (fromBank < MinRunMs) { reason = "Not enough banked time"; return 0; }
 
-        game.RequestOfflineHours(amount / 3_600_000);
+        game.RequestOfflineHours(gameTime / 3_600_000);
         if (IsProcessing) { reason = "The game refused the time skip"; return 0; }
 
-        TimeBankStore.Withdraw(amount);
+        TimeBankStore.Withdraw(fromBank);
         reason = "";
-        Plugin.Log($"Spent {Format(amount)}. Bank: {Format(TimeBankStore.BankedMs)}");
-        return amount;
+        Plugin.Log($"Spent {Format(fromBank)} at {speed:0.##}x = {Format(gameTime)} of game time. Bank: {Format(TimeBankStore.BankedMs)}");
+        return fromBank;
     }
 
     internal static string Format(double ms)

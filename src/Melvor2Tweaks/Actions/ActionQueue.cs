@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using GamesByMalcs.Melvor2;
 using GamesByMalcs.Melvor2.Components.Actions;
+using GamesByMalcs.Melvor2.Data;
 using GamesByMalcs.Melvor2.Components.Experience;
 using GamesByMalcs.Melvor2.Components.Inventories;
 using GamesByMalcs.Melvor2.Entities.Combat;
@@ -164,7 +165,8 @@ internal static class ActionQueue
         if (state == null || action == null) return;
         var target = SkillActions.Capture(action);
         if (target == null) return;
-        state.Current = kind == StopKind.None ? null : new QueueEntry { Target = target, Stop = kind, StopValue = value };
+        // "Until it stops" on an entry the queue started keeps it tracked (so it can go back if overridden).
+        state.Current = kind == StopKind.None && state.Current == null ? null : new QueueEntry { Target = target, Stop = kind, StopValue = value };
         Arm(action, state.Current);
         Save();
     }
@@ -183,10 +185,11 @@ internal static class ActionQueue
     private static void Arm(ActionComponent action, QueueEntry? entry)
     {
         Disarm();
-        if (entry == null || entry.Stop == StopKind.None) return;
+        if (entry == null) return;
         s_armedAction = action;
         s_armedEntry = entry;
         s_itemCount = 0;
+        if (entry.Stop == StopKind.None) return; // tracked (to put back if overridden), nothing to count
         if (entry.Stop == StopKind.Level)
         {
             s_armedXp = action.Entity.Components.Values.OfType<ExperienceComponent>().FirstOrDefault();
@@ -328,6 +331,9 @@ internal static class ActionQueue
                 // Stopped by itself before its limit: a crafting entry that ran out goes back on the
                 // front of the queue, so it gathers what it's missing and carries on.
                 if (__state && s_armedEntry is { } unfinished) ResumeLater(unfinished);
+                // Another action was started over it (not by the queue or Queue mode): back in the queue.
+                else if (!__state && s_switching > 0 && s_armedEntry is { } overridden && !QueueMode.Internal && !QueueMode.IsCapturing)
+                    PutBack(overridden);
                 Disarm();
                 if (State is QueueState cs) { cs.Current = null; Save(); }
             }
@@ -343,6 +349,38 @@ internal static class ActionQueue
             if (!s_pendingAdvance) return;
             s_pendingAdvance = false;
             Advance(__instance);
+        }
+    }
+
+    /// <summary>
+    /// The running queue entry was overridden by the player (another action started, or another target
+    /// picked in the same skill): it goes back on the front of the queue with what it had left.
+    /// </summary>
+    private static void PutBack(QueueEntry entry)
+    {
+        if (State is not { } s) return;
+        int left = entry.Stop == StopKind.Items ? entry.StopValue - s_itemCount : entry.StopValue;
+        if (entry.Stop == StopKind.Items && left <= 0) return;
+        s.Entries.Insert(0, new QueueEntry
+        {
+            Target = entry.Target, Stop = entry.Stop, StopValue = left, CountItemId = entry.CountItemId,
+            Auto = entry.Auto, Resume = true, GatherDepth = entry.GatherDepth,
+        });
+        Plugin.Log($"Queue: {entry.Target.Label} was overridden, back in the queue ({s.Entries[0].Describe()})");
+    }
+
+    /// <summary>Same skill, another target (e.g. a different tree): the entry is overridden too.</summary>
+    [HarmonyPatch(typeof(ActionComponent), nameof(ActionComponent.CurrentDescription), MethodType.Setter)]
+    private static class SwitchTargetPatch
+    {
+        private static void Postfix(ActionComponent __instance, IDescribedObject? value)
+        {
+            if (value == null || !ReferenceEquals(__instance, s_armedAction) || s_armedEntry is not { } entry) return;
+            if (QueueMode.Internal || QueueMode.IsActive || __instance is CombatActionComponent) return; // combat targets change by themselves (auto-slayer)
+            if (!__instance.IsStarted || SkillActions.Capture(__instance) is not { } now || now.SameAs(entry.Target)) return;
+            PutBack(entry);
+            Disarm();
+            if (State is QueueState cs) { cs.Current = null; Save(); }
         }
     }
 
@@ -448,7 +486,7 @@ internal static class ActionQueue
             {
                 entry.GatherRounds = 0;
                 Plugin.Log($"Queue: started {entry.Describe()}");
-                state.Current = entry.Stop == StopKind.None ? null : entry;
+                state.Current = entry; // tracked even without a limit, so an override can put it back
                 if (RunningAction is ActionComponent running) Arm(running, state.Current);
                 Save();
                 return entry;

@@ -107,6 +107,12 @@ internal static class QueueMode
 
     private static bool Active => Enabled && !Internal && TimeBank.TimeBank.IsProcessing;
 
+    /// <summary>Queue mode is intercepting player clicks right now (its instant start/restore isn't an override).</summary>
+    internal static bool IsActive => Active;
+
+    /// <summary>Inside a player's start that Queue mode is capturing.</summary>
+    internal static bool IsCapturing => Active && s_inTryStart > 0;
+
     [HarmonyPatch(typeof(ActionComponent), nameof(ActionComponent.TryStart))]
     private static class TryStartPatch
     {
