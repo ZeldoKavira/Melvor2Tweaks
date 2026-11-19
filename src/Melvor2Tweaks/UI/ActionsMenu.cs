@@ -388,7 +388,14 @@ internal static class ActionsMenu
     private static string? LogKey() =>
         s_logPick != null && s_logPick.Selected >= 0 && s_logPick.Selected < s_logKeys.Count ? s_logKeys[s_logPick.Selected] : null;
 
+    // Offline catch-up ticks on a background thread and can change the counts mid-read; retry next second.
     private static void RefreshLog()
+    {
+        try { RefreshLogUnsafe(); }
+        catch (InvalidOperationException) { }
+    }
+
+    private static void RefreshLogUnsafe()
     {
         if (!Valid(s_logPick) || !Valid(s_logText) || ActionLog.ForSave is not { } log) return;
         // Current action first, then by time spent.

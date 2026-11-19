@@ -101,7 +101,7 @@ internal static class ActionLog
     internal static void Save()
     {
         s_dirty = false;
-        s_lastSave = Godot.Time.GetTicksMsec();
+        s_lastSave = (ulong)Environment.TickCount64;
         try
         {
             Directory.CreateDirectory(Settings.DataDir);
@@ -144,7 +144,7 @@ internal static class ActionLog
             if (!ReferenceEquals(action, s_action) || !ReferenceEquals(action.CurrentDescription, s_desc)) Attach(action);
             if (s_entry != null) { s_entry.GameMs += Constants.TickInterval; s_dirty = true; }
         }
-        if (s_dirty && Godot.Time.GetTicksMsec() - s_lastSave > 30_000) Save();
+        if (s_dirty && (ulong)Environment.TickCount64 - s_lastSave > 30_000) Save();
     }
 
     private static void Attach(ActionComponent action)

@@ -196,6 +196,9 @@ internal static class DevCommands
                 }).CallDeferred();
                 break;
             }
+            case "tick-rate":
+                Plugin.Log($"tick-rate: {GamesByMalcs.Melvor2.Core.Constants.TicksPerSecond}/s, interval {GamesByMalcs.Melvor2.Core.Constants.TickInterval} ms");
+                break;
             case "queue-eta":
                 if (TimeBank.TimeBank.Game is { } etaGame)
                 {
