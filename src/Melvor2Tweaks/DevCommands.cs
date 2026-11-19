@@ -195,11 +195,11 @@ internal static class DevCommands
                 GamesByMalcs.Melvor2.Entities.Woodcutting.WoodcuttingTree? tree = null;
                 foreach (var t in wc.Trees.Values) if (t.Recipe.Requirements.AreMet) { tree = t; break; }
                 Plugin.Log($"qm-test: running={Actions.ActionQueue.RunningAction?.Entity.Id}, clicking tree {tree?.Recipe.Id}");
-                Actions.QueueMode.Enabled = true;
+                bool qmWas = Actions.QueueMode.Enabled; Actions.QueueMode.Enabled = true;
                 wc.SelectTree(tree!);
                 Callable.From(() =>
                 {
-                    Actions.QueueMode.Enabled = false;
+                    Actions.QueueMode.Enabled = qmWas;
                     Plugin.Log($"qm-test: after, running={Actions.ActionQueue.RunningAction?.Entity.Id} " +
                                $"target={Actions.ActionQueue.RunningAction?.CurrentDescription?.Id}, queued={Actions.ActionQueue.State?.Entries.Count}");
                 }).CallDeferred();
@@ -214,11 +214,11 @@ internal static class DevCommands
                 GamesByMalcs.Melvor2.Entities.Mining.MiningRock? rock = null;
                 foreach (var r in m.Rocks.Values) if (r.Recipe.Requirements.AreMet) { rock = r; break; }
                 Plugin.Log($"qm-test: running={Actions.ActionQueue.RunningAction?.Entity.Id}, rule={Actions.ActionQueue.State?.Current?.Describe()}, clicking rock {rock?.Recipe.Id}");
-                Actions.QueueMode.Enabled = true;
+                bool qmWas = Actions.QueueMode.Enabled; Actions.QueueMode.Enabled = true;
                 m.SelectRock(rock!);
                 Callable.From(() =>
                 {
-                    Actions.QueueMode.Enabled = false;
+                    Actions.QueueMode.Enabled = qmWas;
                     Plugin.Log($"qm-test: after, running={Actions.ActionQueue.RunningAction?.Entity.Id} " +
                                $"rule={Actions.ActionQueue.State?.Current?.Describe()} progress={Actions.ActionQueue.ItemProgress}, queued={Actions.ActionQueue.State?.Entries.Count}");
                 }).CallDeferred();
@@ -248,7 +248,7 @@ internal static class DevCommands
                     if ((e.Key as GamesByMalcs.Melvor2.Data.INamespacedObject)?.Id == parts[3] + ":" + parts[4]) recipe = e.Value;
                 HarmonyLib.AccessTools.Method(action.GetType(), "SelectRecipe")!.Invoke(action, new[] { recipe });
                 int before = Actions.ActionQueue.State?.Entries.Count ?? 0;
-                Actions.QueueMode.Enabled = true;
+                bool qmWas = Actions.QueueMode.Enabled; Actions.QueueMode.Enabled = true;
                 bool pressed = false;
                 foreach (var view in UI.NodeSearch.All<Godot.Control>())
                 {
@@ -258,10 +258,20 @@ internal static class DevCommands
                     pressed = true;
                     break;
                 }
-                Actions.QueueMode.Enabled = false;
+                Actions.QueueMode.Enabled = qmWas;
                 Plugin.Log($"qm-test-craft: pressed={pressed} running={Actions.ActionQueue.RunningAction?.Entity.Id} queued {before} -> {Actions.ActionQueue.State?.Entries.Count}, last={Actions.ActionQueue.State?.Entries.LastOrDefault()?.Describe()}");
                 break;
             }
+            case "timing":
+                UI.ActionsMenu.s_timing = !UI.ActionsMenu.s_timing;
+                break;
+            case var qmc when qmc.StartsWith("queue-mode:"):
+                Actions.QueueMode.Enabled = qmc.EndsWith("on");
+                Plugin.Log($"queue-mode: {Actions.QueueMode.Enabled}");
+                break;
+            case "queue-mode?":
+                Plugin.Log($"queue-mode is {(Actions.QueueMode.Enabled ? "on" : "off")}");
+                break;
             case "tick-rate":
                 Plugin.Log($"tick-rate: {GamesByMalcs.Melvor2.Core.Constants.TicksPerSecond}/s, interval {GamesByMalcs.Melvor2.Core.Constants.TickInterval} ms");
                 break;

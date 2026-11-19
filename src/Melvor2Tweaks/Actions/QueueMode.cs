@@ -21,7 +21,15 @@ namespace Melvor2Tweaks.Actions;
 /// </summary>
 internal static class QueueMode
 {
-    internal static bool Enabled { get; set; }
+    // Kept on the SceneTree so a hot reload of the mod doesn't silently switch Queue mode off.
+    private const string EnabledMeta = "melvor2tweaks_queue_mode";
+    private static bool s_enabled = Godot.Engine.GetMainLoop() is { } loop && loop.HasMeta(EnabledMeta) && loop.GetMeta(EnabledMeta).AsBool();
+
+    internal static bool Enabled
+    {
+        get => s_enabled;
+        set { s_enabled = value; Godot.Engine.GetMainLoop()?.SetMeta(EnabledMeta, value); }
+    }
 
     /// <summary>Set while the mod itself starts actions (queue advance, restore) so they aren't intercepted.</summary>
     internal static bool Internal { get; set; }
@@ -87,6 +95,7 @@ internal static class QueueMode
 
         private static bool Prefix(object __instance)
         {
+            if (Enabled) Plugin.Log($"Queue mode: crafting Start pressed (active {Active})");
             if (!Active) return true;
             return !QueueCraft(Traverse.Create(__instance).Property("Action").GetValue() as ActionComponent);
         }
@@ -220,7 +229,7 @@ internal static class QueueMode
 
     internal static void Shutdown()
     {
-        Enabled = false;
+        // Enabled is left as it is: it survives a hot reload (see EnabledMeta).
         s_scheduled = false; s_started = null; s_restore = null;
         Captured = null;
     }

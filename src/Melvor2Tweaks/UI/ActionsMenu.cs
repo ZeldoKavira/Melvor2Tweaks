@@ -116,7 +116,6 @@ internal static class ActionsMenu
     {
         ActionQueue.Changed -= s_onChanged;
         QueueMode.Captured -= ShowStatus;
-        QueueMode.Enabled = false;
         foreach (Node? n in new Node?[] { s_button, s_popup })
         {
             if (!Valid(n)) continue;
@@ -488,7 +487,16 @@ internal static class ActionsMenu
         }).CallDeferred();
     }
 
+    internal static bool s_timing;
+
     private static void Refresh()
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        RefreshInner(sw);
+        if (s_timing) Plugin.Log($"timing: refresh total {sw.Elapsed.TotalMilliseconds:0.0} ms");
+    }
+
+    private static void RefreshInner(System.Diagnostics.Stopwatch sw)
     {
         if (!Valid(s_button)) return;
         var state = ActionQueue.State;
@@ -516,6 +524,7 @@ internal static class ActionsMenu
             try { (currentEta, etas, total) = QueueEta.All(game); }
             catch (Exception ex) { Plugin.Log("ETA: " + ex.Message); }
         }
+        if (s_timing) Plugin.Log($"timing: eta done at {sw.Elapsed.TotalMilliseconds:0.0} ms");
         if (running != null && currentEta.Length > 0 && currentEta != "no end") s_rule.Text += $" - {currentEta} left";
         if (Valid(s_total)) { s_total!.Text = queued > 0 && total.Length > 0 ? "Whole queue: " + total : ""; s_total.Visible = s_total.Text.Length > 0; }
         for (int i = 0; i < s_etaLabels.Count && i < etas.Count; i++)
