@@ -13,7 +13,8 @@ using HarmonyLib;
 
 namespace Melvor2Tweaks.Features;
 
-public enum RuleAction { Off, Sell, Open, Bury }
+/// <summary>Never = this item is exempt from its category's rule.</summary>
+public enum RuleAction { Off, Sell, Open, Bury, Never }
 
 /// <summary>What Keep starts at for an item that has no rule yet.</summary>
 public enum KeepDefault { Zero, One, AllButOne, All }
@@ -39,20 +40,82 @@ internal static class ItemRules
     internal static bool CanOpen(Item item) => item.Capabilities.TryGet<OpenableCapability>(out _);
     internal static bool CanBury(Item item) => item.Capabilities.TryGet<BuryCapability>(out _);
 
+    internal static bool Supports(Item item, RuleAction action) => action switch
+    {
+        RuleAction.Sell => true,
+        RuleAction.Open => CanOpen(item),
+        RuleAction.Bury => CanBury(item),
+        _ => false,
+    };
+
     internal static IEnumerable<RuleAction> ActionsFor(Item item)
     {
         yield return RuleAction.Off;
         yield return RuleAction.Sell;
         if (CanOpen(item)) yield return RuleAction.Open;
         if (CanBury(item)) yield return RuleAction.Bury;
+        if (CategoryRuleFor(item) != null || Get(item)?.Action == RuleAction.Never) yield return RuleAction.Never;
     }
 
+    /// <summary>Picker text. Off reads as the category's rule when one applies.</summary>
+    internal static string Label(Item item, RuleAction action, bool bank)
+    {
+        if (action == RuleAction.Off && CategoryRuleFor(item) is { } c)
+            return $"{(bank ? "Auto: " : "")}{c.category.DisplayName.Text} ({c.rule.Action.ToString().ToLowerInvariant()})";
+        return action switch
+        {
+            RuleAction.Off => bank ? "Auto: off" : "Off",
+            RuleAction.Never => bank ? "Auto: never" : "Never",
+            _ => bank ? $"Auto-{action.ToString().ToLowerInvariant()}" : action.ToString(),
+        };
+    }
+
+    /// <summary>The item's own rule (including Never), not its category's.</summary>
     internal static ItemRule? Get(Item item) => Settings.Current.ItemRules.TryGetValue(item.Id, out var r) ? r : null;
+
+    /// <summary>What actually applies: the item's own rule, else its category's (Never = nothing).</summary>
+    internal static ItemRule? Effective(Item item)
+    {
+        if (Get(item) is { } own) return own.Action == RuleAction.Never ? null : own;
+        return CategoryRuleFor(item)?.rule;
+    }
+
+    // ---- categories (the game's bank tags: logs, ores, gems...) -----------------------------------
+    internal static IEnumerable<BankTagCategory> Categories() =>
+        TimeBank.TimeBank.Game?.Data.GetDataRegistryOutput<BankTagCategory>().GetAllObjects() ?? Enumerable.Empty<BankTagCategory>();
+
+    internal static bool HasTag(Item item, BankTagCategory category) => item.BankTags.Any(t => t.BankTag == category);
+
+    internal static ItemRule? GetCategory(BankTagCategory category) =>
+        Settings.Current.CategoryRules.TryGetValue(category.Id, out var r) ? r : null;
+
+    /// <summary>First of the item's categories with a rule the item supports.</summary>
+    internal static (BankTagCategory category, ItemRule rule)? CategoryRuleFor(Item item)
+    {
+        if (Settings.Current.CategoryRules.Count == 0) return null;
+        foreach (var tag in item.BankTags)
+            if (Settings.Current.CategoryRules.TryGetValue(tag.BankTag.Id, out var rule) && Supports(item, rule.Action))
+                return (tag.BankTag, rule);
+        return null;
+    }
+
+    internal static void SetCategory(BankTagCategory category, RuleAction action, int keep)
+    {
+        var rules = Settings.Current.CategoryRules;
+        if (action is RuleAction.Off or RuleAction.Never) rules.Remove(category.Id);
+        else rules[category.Id] = new ItemRule { Action = action, Keep = Math.Max(0, keep) };
+        Settings.Save();
+        Plugin.Log($"Category rule: {category.Id} = {action} keep {keep}");
+        if (Bank is BankEntity bank)
+            foreach (var item in bank.Inventory.Stacks.Select(s => s.Item).Where(i => HasTag(i, category)).Distinct().ToList())
+                Apply(item);
+        Changed?.Invoke();
+    }
 
     internal static void Set(Item item, RuleAction action, int keep)
     {
         var rules = Settings.Current.ItemRules;
-        if (action == RuleAction.Off) rules.Remove(item.Id);
+        if (action == RuleAction.Off || (action == RuleAction.Never && CategoryRuleFor(item) == null)) rules.Remove(item.Id);
         else rules[item.Id] = new ItemRule { Action = action, Keep = Math.Max(0, keep) };
         Settings.Save();
         Plugin.Log($"Item rule: {item.Id} = {action} keep {keep}");
@@ -104,7 +167,7 @@ internal static class ItemRules
 
     private static int ApplyNow(Item item)
     {
-        var rule = Get(item);
+        var rule = Effective(item);
         if (rule == null || Bank is not BankEntity bank || IsLocked(bank.Inventory, item)) return 0;
         int excess = bank.Inventory.GetQuantity(item) - rule.Keep;
         if (excess <= 0) return 0;
@@ -134,8 +197,11 @@ internal static class ItemRules
         var game = TimeBank.TimeBank.Game;
         if (game == null) return 0;
         int handled = 0;
-        foreach (string id in Settings.Current.ItemRules.Keys.ToList())
-            if (game.Data.TryGetObject<Item>(id, out var item)) handled += Apply(item);
+        var items = Settings.Current.ItemRules.Keys
+            .Select(id => game.Data.TryGetObject<Item>(id, out var i) ? i : null).OfType<Item>().ToList();
+        if (Settings.Current.CategoryRules.Count > 0 && Bank is BankEntity bank)
+            items.AddRange(bank.Inventory.Stacks.Select(s => s.Item).Where(i => CategoryRuleFor(i) != null));
+        foreach (var item in items.Distinct().ToList()) handled += Apply(item);
         return handled;
     }
 
@@ -144,7 +210,7 @@ internal static class ItemRules
     {
         private static bool Prefix(BankInventoryComponent __instance, Item item, int quantity, AddItemFlags options, ref int __result)
         {
-            if (quantity <= 0 || !options.HasFlag(AddItemFlags.Found) || Get(item) is not { Action: RuleAction.Sell }) return true;
+            if (quantity <= 0 || !options.HasFlag(AddItemFlags.Found) || Effective(item) is not { Action: RuleAction.Sell }) return true;
             // Bank full and no stack to add to: sell the drop outright instead of losing it.
             if (__instance.GetQuantity(item) <= 0 && __instance.StackCount >= __instance.MaxStacks && Bank is BankEntity bank)
             {
@@ -160,7 +226,7 @@ internal static class ItemRules
 
         private static void Postfix(Item item, AddItemFlags options, int __result)
         {
-            if (__result > 0 && options.HasFlag(AddItemFlags.Found) && Get(item) != null) Apply(item);
+            if (__result > 0 && options.HasFlag(AddItemFlags.Found) && Effective(item) != null) Apply(item);
         }
     }
 
@@ -217,7 +283,7 @@ internal static class ItemRules
         var picker = line.GetNode<OptionButton>("Action");
         var keep = line.GetNode<SpinBox>("Keep");
         picker.Clear();
-        foreach (var action in ActionsFor(item)) picker.AddItem(action == RuleAction.Off ? "Auto: off" : $"Auto-{action.ToString().ToLowerInvariant()}", (int)action);
+        foreach (var action in ActionsFor(item)) picker.AddItem(Label(item, action, bank: true), (int)action);
         var rule = Get(item);
         picker.Select(picker.GetItemIndex((int)(rule?.Action ?? RuleAction.Off)));
         // No rule yet: Keep starts at the configured default (0 / 1 / all but 1 / all owned).

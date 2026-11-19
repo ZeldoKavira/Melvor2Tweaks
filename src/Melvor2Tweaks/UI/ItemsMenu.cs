@@ -23,7 +23,7 @@ internal static class ItemsMenu
     private const string PopupName = "Melvor2TweaksItemsPopup";
     private const int MaxRows = 80;
 
-    private enum Filter { Mine, WithRule, All }
+    private enum Filter { Mine, WithRule, All, Categories }
 
     private static PanelButtonContainer? s_button;
     private static PanelContainerPopup? s_popup;
@@ -131,7 +131,9 @@ internal static class ItemsMenu
             "For a new rule, Keep starts at the Default Keep setting (Settings > Melvor2Tweaks > Items); set Keep first to use another amount.\n" +
             "\"Bank & rules\" lists what you own plus every item with a rule; searching there covers every item in the game, " +
             "so you can set up items you haven't found yet.\n" +
-            "Also available from an item's Sell panel in the bank."));
+            "Also available from an item's Sell panel in the bank.\n" +
+            "Categories: a rule for a whole bank category (logs, ores, gems...) covers every item in it, including ones you find later. " +
+            "An item's own rule wins; set an item to Never to leave it out of its category's rule."));
         header.AddChild(new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill });
         var close = TopBar.GameButton("Close");
         close.Pressed += () => s_popup?.Close();
@@ -150,6 +152,7 @@ internal static class ItemsMenu
         s_filter.AddItem("Bank & rules", (int)Filter.Mine);
         s_filter.AddItem("With a rule", (int)Filter.WithRule);
         s_filter.AddItem("All items", (int)Filter.All);
+        s_filter.AddItem("Categories", (int)Filter.Categories);
         s_filter.ItemSelected += _ => Rebuild();
         toolbar.AddChild(s_filter);
         var apply = TopBar.GameButton("Apply rules now");
@@ -256,11 +259,12 @@ internal static class ItemsMenu
     {
         if (!Valid(s_rows)) return;
         foreach (Node c in s_rows!.GetChildren()) { s_rows.RemoveChild(c); c.QueueFree(); }
+        if (Valid(s_filter) && (Filter)s_filter!.GetSelectedId() == Filter.Categories) { RebuildCategories(); return; }
 
         string q = s_search?.Text.Trim() ?? "";
         var matches = Candidates(q)
             .Where(i => q.Length == 0 || i.DisplayName.Singular.Contains(q, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(i => ItemRules.Get(i) == null) // configured first
+            .OrderBy(i => ItemRules.Get(i) == null && ItemRules.CategoryRuleFor(i) == null) // configured first
             .ThenBy(i => ItemRules.InBank(i) <= 0)  // then owned
             .ThenBy(i => i.DisplayName.Singular)
             .ToList();
@@ -292,6 +296,7 @@ internal static class ItemsMenu
         var caps = new List<string>();
         if (ItemRules.CanOpen(item)) caps.Add("Openable");
         if (ItemRules.CanBury(item)) caps.Add("Buryable");
+        caps.AddRange(item.BankTags.Select(t => t.BankTag.DisplayName.Text));
         if (caps.Count > 0) names.AddChild(TopBar.RawLabel(string.Join(" · ", caps), 12, new Color(1, 1, 1, 0.55f)));
         row.AddChild(names);
 
@@ -302,7 +307,7 @@ internal static class ItemsMenu
 
         var rule = ItemRules.Get(item);
         var picker = new OptionButton { FocusMode = Control.FocusModeEnum.None, CustomMinimumSize = new Vector2(150, 0), SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
-        foreach (var action in ItemRules.ActionsFor(item)) picker.AddItem(action == RuleAction.Off ? "Off" : action.ToString(), (int)action);
+        foreach (var action in ItemRules.ActionsFor(item)) picker.AddItem(ItemRules.Label(item, action, bank: false), (int)action);
         picker.Select(picker.GetItemIndex((int)(rule?.Action ?? RuleAction.Off)));
         row.AddChild(picker);
 
@@ -335,8 +340,76 @@ internal static class ItemsMenu
         keep.ValueChanged += _ =>
         {
             prefilled = false;
-            if (picker.GetItemId(picker.Selected) != (int)RuleAction.Off) Changed();
+            if (picker.GetItemId(picker.Selected) is not ((int)RuleAction.Off or (int)RuleAction.Never)) Changed();
         };
+        return row;
+    }
+
+    // ---- categories --------------------------------------------------------------------------------
+    private static void RebuildCategories()
+    {
+        string q = s_search?.Text.Trim() ?? "";
+        var all = TimeBank.TimeBank.Game?.Data.GetDataRegistryOutput<Item>().GetAllObjects().ToList() ?? new List<Item>();
+        var cats = ItemRules.Categories()
+            .Where(c => q.Length == 0 || c.DisplayName.Text.Contains(q, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(c => ItemRules.GetCategory(c) == null).ThenBy(c => c.DisplayName.Text).ToList();
+        foreach (var cat in cats) s_rows!.AddChild(CategoryRow(cat, all.Where(i => ItemRules.HasTag(i, cat)).ToList()));
+        if (Valid(s_footer))
+            s_footer!.Text = cats.Count == 0 ? "No categories match." :
+                $"{cats.Count} categories. A category rule covers every item in it; an item's own rule (or Never) wins.";
+    }
+
+    private static Control CategoryRow(GamesByMalcs.Melvor2.Entities.Bank.BankTagCategory cat, List<Item> items)
+    {
+        var row = new HBoxContainer();
+        row.AddThemeConstantOverride("separation", 10);
+        row.AddChild(new TextureRect
+        {
+            Texture = cat.Icon,
+            CustomMinimumSize = new Vector2(36, 36),
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+        });
+        var names = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, Alignment = BoxContainer.AlignmentMode.Center };
+        names.AddThemeConstantOverride("separation", 0);
+        var name = TopBar.RawLabel(cat.DisplayName.Text, 15, null);
+        names.AddChild(name);
+        var sample = string.Join(", ", items.Take(6).Select(i => i.DisplayName.Singular)) + (items.Count > 6 ? ", ..." : "");
+        var sub = TopBar.RawLabel($"{items.Count} items: {sample}", 12, new Color(1, 1, 1, 0.55f));
+        sub.ClipText = true;
+        names.AddChild(sub);
+        row.AddChild(names);
+
+        int owned = items.Sum(ItemRules.InBank);
+        var count = TopBar.RawLabel(owned.ToString("N0"), 14, null);
+        count.CustomMinimumSize = new Vector2(90, 0);
+        count.VerticalAlignment = VerticalAlignment.Center;
+        row.AddChild(count);
+
+        var rule = ItemRules.GetCategory(cat);
+        var picker = new OptionButton { FocusMode = Control.FocusModeEnum.None, CustomMinimumSize = new Vector2(150, 0), SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
+        picker.AddItem("Off", (int)RuleAction.Off);
+        picker.AddItem("Sell", (int)RuleAction.Sell);
+        if (items.Any(ItemRules.CanOpen)) picker.AddItem("Open", (int)RuleAction.Open);
+        if (items.Any(ItemRules.CanBury)) picker.AddItem("Bury", (int)RuleAction.Bury);
+        picker.Select(Math.Max(0, picker.GetItemIndex((int)(rule?.Action ?? RuleAction.Off))));
+        row.AddChild(picker);
+
+        var keep = new SpinBox { MinValue = 0, MaxValue = 1_000_000_000, Step = 1, CustomMinimumSize = new Vector2(130, 0), SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
+        keep.SetValueNoSignal(rule?.Keep ?? 0);
+        UiKit.AddTooltip(keep, "Keep", "How many of each item in this category to leave in the bank.");
+        row.AddChild(keep);
+
+        void Changed()
+        {
+            int before = items.Sum(ItemRules.InBank);
+            ItemRules.SetCategory(cat, (RuleAction)picker.GetItemId(picker.Selected), (int)keep.Value);
+            int after = items.Sum(ItemRules.InBank);
+            count.Text = after.ToString("N0");
+            if (before != after) SetStatus($"{cat.DisplayName.Text}: handled {before - after:N0} item(s)");
+        }
+        picker.ItemSelected += _ => Changed();
+        keep.ValueChanged += _ => { if (picker.GetItemId(picker.Selected) != (int)RuleAction.Off) Changed(); };
         return row;
     }
 }

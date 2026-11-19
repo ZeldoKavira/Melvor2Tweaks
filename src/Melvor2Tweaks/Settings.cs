@@ -90,6 +90,16 @@ public sealed class Settings
     [Setting("Skilling", "Bonfire: relight automatically", "When the bonfire burns out (while not firemaking), refill it with the selected logs.")]
     public bool BonfireAutoRelight { get; set; } = true;
 
+    // ---- Action queue ------------------------------------------------------------------------------
+    [Setting("Action queue", "Gather missing materials first", "When a queued crafting action (smithing, cooking, fletching...) is missing materials, " +
+             "the queue first gathers or makes them (woodcutting, mining, fishing, or another recipe such as bars), then crafts. " +
+             "A crafting entry that runs out part-way gathers more and carries on.")]
+    public bool QueueGatherFirst { get; set; } = true;
+
+    [Setting("Action queue", "Crafts to gather for", "How many crafts' worth of materials to gather for an entry with no item limit " +
+             "(\"Until it stops\", or \"Until level\" before the action has a known XP rate).", Min = 10, Max = 100000, Step = 10)]
+    public int QueueGatherBatch { get; set; } = 200;
+
     // ---- Interface ---------------------------------------------------------------------------------
     [Setting("Interface", "Event log size", "How many entries the event log keeps (game default 100). Takes effect for new entries.", Min = 100, Max = 2000, Step = 50)]
     public int EventLogCap { get; set; } = 500;
@@ -102,6 +112,9 @@ public sealed class Settings
              "(bank Sell panel and Items menu). Change Keep before picking the action to override it.",
              Options = new[] { "0", "1", "All but 1", "All" })]
     public Features.KeepDefault NewRuleKeep { get; set; } = Features.KeepDefault.Zero;
+
+    /// <summary>Item automation by bank category (BankTagCategory id); an item's own rule wins.</summary>
+    public System.Collections.Generic.Dictionary<string, Features.ItemRule> CategoryRules { get; set; } = new();
 
     /// <summary>Item automation: item id -> Sell / Open / Bury everything above a keep minimum.</summary>
     public System.Collections.Generic.Dictionary<string, Features.ItemRule> ItemRules { get; set; } = new();

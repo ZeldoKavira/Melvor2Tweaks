@@ -75,6 +75,19 @@ internal static class DevCommands
                 Plugin.Log($"NewRuleKeep = {Settings.Current.NewRuleKeep}");
                 break;
             }
+            case var gp when gp.StartsWith("gather-plan:"):
+            {
+                // gather-plan:<entityId>:<recipeId>:<crafts> - dry run, changes nothing
+                var parts = gp.Split(':');
+                if (parts.Length >= 6 && TimeBank.TimeBank.Game is { } gpGame)
+                {
+                    var entry = new Actions.QueueEntry { Target = new Actions.ActionTarget { EntityId = parts[1] + ":" + parts[2], Ids = new[] { parts[3] + ":" + parts[4] }, Label = parts[4] } };
+                    var plan = Actions.Gather.Plan(gpGame, entry, int.Parse(parts[5]), out string note);
+                    Plugin.Log($"gather-plan {parts[4]} x{parts[5]}: crafting={Actions.Gather.IsCrafting(gpGame, entry.Target)} affordable={Actions.Gather.CraftsAffordable(gpGame, entry.Target)} " +
+                               $"plan [{string.Join("; ", plan.Select(p => p.Describe()))}] {note}");
+                }
+                break;
+            }
             case var s when s.StartsWith("items-show:"):
             {
                 // items-show:<filter 0|1|2>:<search text>
@@ -183,6 +196,21 @@ internal static class DevCommands
                 }).CallDeferred();
                 break;
             }
+            case "queue-eta":
+                if (TimeBank.TimeBank.Game is { } etaGame)
+                {
+                    var (cur, list, total) = Actions.QueueEta.All(etaGame);
+                    Plugin.Log($"queue-eta: current {cur}; entries [{string.Join(", ", list)}]; total {total}");
+                }
+                break;
+            case "log-dump":
+                foreach (var (k, e) in Actions.ActionLog.ForSave ?? new())
+                    Plugin.Log($"log: {k} '{e.Label}' actions {e.Actions} ms {e.GameMs:N0} xp {e.Xp:N0} products {e.Products} items {e.Items.Count}");
+                break;
+            case "cat-list":
+                foreach (var cat in Features.ItemRules.Categories())
+                    Plugin.Log($"category {cat.Id} '{cat.DisplayName.Text}'");
+                break;
             case "queue-start":
                 Plugin.Log("queue-start: [" + Actions.ActionQueue.StartIfIdle() + "] running " + (Actions.ActionQueue.RunningAction?.Entity.Id ?? "none"));
                 break;

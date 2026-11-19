@@ -20,19 +20,36 @@ public sealed class QueueEntry
     public ActionTarget Target { get; set; } = new();
     public StopKind Stop { get; set; }
     public int StopValue { get; set; }
+    /// <summary>"For N items" counts only this item (gather entries), instead of the main products.</summary>
+    public string? CountItemId { get; set; }
+    /// <summary>Added by the queue to gather materials for the entry after it (not looped).</summary>
+    public bool Auto { get; set; }
+    /// <summary>The rest of an entry that ran out of materials part-way (not looped; the original was).</summary>
+    public bool Resume { get; set; }
+    public int GatherDepth { get; set; }
+    public int GatherRounds { get; set; }
 
-    public string Describe() => Target.Label + Stop switch
+    public QueueEntry CopyForLoop() => new() { Target = Target, Stop = Stop, StopValue = StopValue, CountItemId = CountItemId };
+
+    public string Describe() => (Auto ? "Gather: " : "") + Target.Label + Stop switch
     {
         StopKind.Level => $" - until level {StopValue}",
+        StopKind.Items when CountItemId != null => $" - for {StopValue:N0} {ItemName(CountItemId)}",
         StopKind.Items => $" - for {StopValue:N0} items",
         _ => " - until it stops",
     };
+
+    private static string ItemName(string id) =>
+        TimeBank.TimeBank.Game?.Data.TryGetObject<GamesByMalcs.Melvor2.Data.Items.Item>(id, out var item) == true
+            ? item.DisplayName.Plural : id;
 }
 
 public sealed class QueueState
 {
     public List<QueueEntry> Entries { get; set; } = new();
     public bool Enabled { get; set; } = true;
+    /// <summary>Each entry goes back on the end of the queue when it starts.</summary>
+    public bool Loop { get; set; }
     /// <summary>Stop rule on the running action (survives reloads; item progress restarts at 0).</summary>
     public QueueEntry? Current { get; set; }
 }
@@ -48,12 +65,17 @@ internal static class ActionQueue
 {
     private static Dictionary<string, QueueState> s_states = new();
     private static string FilePath => Path.Combine(Settings.DataDir, "queue.json");
+    private static string PresetsPath => Path.Combine(Settings.DataDir, "queue-presets.json");
+    /// <summary>Saved queues by name (shared by all saves).</summary>
+    internal static SortedDictionary<string, List<QueueEntry>> Presets { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
 
     public static event Action? Changed;
 
     private static readonly Func<Guid> s_activeSaveId =
         AccessTools.MethodDelegate<Func<Guid>>(AccessTools.PropertyGetter(typeof(SaveManager), "ActiveSaveId"));
+
+    internal static string? SaveKey { get { Guid id = s_activeSaveId(); return id == Guid.Empty ? null : id.ToString(); } }
 
     internal static QueueState? State
     {
@@ -74,7 +96,43 @@ internal static class ActionQueue
                 s_states = JsonSerializer.Deserialize<Dictionary<string, QueueState>>(File.ReadAllText(FilePath), Json) ?? new();
         }
         catch (Exception e) { Plugin.Log("queue.json unreadable: " + e.Message); s_states = new(); }
+        try
+        {
+            if (File.Exists(PresetsPath) &&
+                JsonSerializer.Deserialize<Dictionary<string, List<QueueEntry>>>(File.ReadAllText(PresetsPath), Json) is { } p)
+                Presets = new(p, StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception e) { Plugin.Log("queue-presets.json unreadable: " + e.Message); }
     }
+
+    private static void SavePresets()
+    {
+        try { File.WriteAllText(PresetsPath, JsonSerializer.Serialize(Presets, Json)); }
+        catch (Exception e) { Plugin.Log("Could not save queue presets: " + e.Message); }
+        Changed?.Invoke();
+    }
+
+    /// <summary>Saves the queue (without gather entries / leftovers) under a name.</summary>
+    internal static bool SavePreset(string name)
+    {
+        name = name.Trim();
+        if (name.Length == 0 || State is not { } s) return false;
+        Presets[name] = s.Entries.Where(e => !e.Auto && !e.Resume).Select(e => e.CopyForLoop()).ToList();
+        SavePresets();
+        return true;
+    }
+
+    /// <summary>Replaces the queue with a saved one.</summary>
+    internal static void LoadPreset(string name)
+    {
+        if (State is not { } s || !Presets.TryGetValue(name, out var entries)) return;
+        s.Entries = entries.Select(e => e.CopyForLoop()).ToList();
+        Save();
+    }
+
+    internal static void DeletePreset(string name) { if (Presets.Remove(name)) SavePresets(); }
+
+    internal static void SetLoop(bool on) { if (State is { } s) { s.Loop = on; Save(); } }
 
     internal static void Save()
     {
@@ -146,7 +204,8 @@ internal static class ActionQueue
     private static void OnItemAdded(object? sender, ItemAddedEventArgs e)
     {
         if (s_armedEntry == null || s_armedAction == null || e.Quantity <= 0) return;
-        if (Features.SkillingTweaks.IsSideDrop(s_armedAction, e.Item)) return;
+        if (s_armedEntry.CountItemId != null ? e.Item.Id != s_armedEntry.CountItemId
+                                             : Features.SkillingTweaks.IsSideDrop(s_armedAction, e.Item)) return;
         s_itemCount += e.Quantity;
         if (s_itemCount >= s_armedEntry.StopValue) RuleMet();
     }
@@ -255,6 +314,9 @@ internal static class ActionQueue
             if (!__result) return;
             if (ReferenceEquals(__instance, s_armedAction))
             {
+                // Stopped by itself before its limit: a crafting entry that ran out goes back on the
+                // front of the queue, so it gathers what it's missing and carries on.
+                if (__state && s_armedEntry is { } unfinished) ResumeLater(unfinished);
                 Disarm();
                 if (State is QueueState cs) { cs.Current = null; Save(); }
             }
@@ -273,6 +335,44 @@ internal static class ActionQueue
         }
     }
 
+    private static void ResumeLater(QueueEntry entry)
+    {
+        if (!Settings.Current.QueueGatherFirst || State is not { Enabled: true } s || TimeBank.TimeBank.Game is not { } game) return;
+        if (!Gather.IsCrafting(game, entry.Target) || Gather.CraftsAffordable(game, entry.Target) is not 0) return;
+        int left = entry.Stop == StopKind.Items ? entry.StopValue - s_itemCount : entry.StopValue;
+        if (left <= 0) return;
+        s.Entries.Insert(0, new QueueEntry
+        {
+            Target = entry.Target, Stop = entry.Stop, StopValue = left, CountItemId = entry.CountItemId,
+            Auto = entry.Auto, Resume = true, GatherDepth = entry.GatherDepth, GatherRounds = entry.GatherRounds,
+        });
+        Plugin.Log($"Queue: {entry.Target.Label} ran out of materials, gathering then resuming ({left:N0} left)");
+    }
+
+    internal static int? LevelOf(Game game, ActionTarget t) =>
+        XpOf(game, t)?.Level;
+
+    internal static ExperienceComponent? XpOf(Game game, ActionTarget t) =>
+        game.Entities.TryGetObjectById(t.EntityId, out var entity) && entity != null
+            ? entity.Components.Values.OfType<ExperienceComponent>().FirstOrDefault() : null;
+
+    /// <summary>How many crafts an entry should gather materials for.</summary>
+    private static int CraftsWanted(Game game, QueueEntry entry)
+    {
+        int perCraft = Gather.ProductPerCraft(game, entry.Target);
+        switch (entry.Stop)
+        {
+            case StopKind.Items:
+                return (entry.StopValue + perCraft - 1) / perCraft;
+            case StopKind.Level when XpOf(game, entry.Target) is { } xp &&
+                                     ActionLog.XpPerAction(ActionLog.Get(entry.Target)) is double perAction:
+                double need = xp.Table.GetXpForLevel(entry.StopValue) - xp.Xp;
+                return (int)Math.Clamp(Math.Ceiling(need / perAction), 1, 1_000_000);
+            default:
+                return Math.Max(1, Settings.Current.QueueGatherBatch);
+        }
+    }
+
     /// <summary>
     /// Starts the next queued entry when nothing is running (the queue otherwise only advances when a
     /// running action stops by itself). Returns a status line for the menu, or "" when nothing to say.
@@ -285,7 +385,8 @@ internal static class ActionQueue
         if (RunningAction is { IsStarted: true }) return "";
         s_lastSkip = "";
         if (Advance(game) != null) return "";
-        return $"Nothing in the queue could start, so it was emptied. Last: {s_lastSkip}";
+        return state.Loop ? $"Nothing in the queue can start right now. Last: {s_lastSkip}"
+                          : $"Nothing in the queue could start, so it was emptied. Last: {s_lastSkip}";
     }
 
     private static string s_lastSkip = "";
@@ -294,10 +395,39 @@ internal static class ActionQueue
     {
         var state = State;
         if (state == null || !state.Enabled) return null;
-        while (state.Entries.Count > 0)
+        int failsInARow = 0;
+        for (int guard = 0; state.Entries.Count > 0 && guard < 500; guard++)
         {
+            // Looping: stop once every entry has failed in a row (they'd just go round again).
+            if (state.Loop && failsInARow > state.Entries.Count) break;
             var entry = state.Entries[0];
             state.Entries.RemoveAt(0);
+            bool loops = state.Loop && !entry.Auto && !entry.Resume;
+            if (loops) state.Entries.Add(entry.CopyForLoop());
+
+            if (entry.Stop == StopKind.Level && LevelOf(game, entry.Target) is int lvl && lvl >= entry.StopValue)
+            {
+                s_lastSkip = $"{entry.Target.Label} (already level {lvl})";
+                Plugin.Log($"Queue: skipped {s_lastSkip}");
+                failsInARow++;
+                continue;
+            }
+
+            // Crafting: gather what it's missing first (those entries go in front of it).
+            if (Settings.Current.QueueGatherFirst && entry.GatherDepth < 4 && entry.GatherRounds < 5)
+            {
+                var plan = Gather.Plan(game, entry, CraftsWanted(game, entry), out string note);
+                if (note.Length > 0) Plugin.Log($"Queue: {entry.Target.Label}: {note}");
+                if (plan.Count > 0)
+                {
+                    entry.GatherRounds++;
+                    if (loops) state.Entries.RemoveAt(state.Entries.Count - 1); // re-added when it comes round again
+                    state.Entries.InsertRange(0, plan.Append(entry));
+                    Plugin.Log($"Queue: gathering for {entry.Target.Label}: {string.Join("; ", plan.Select(p => p.Describe()))}");
+                    continue;
+                }
+            }
+
             bool started;
             string reason;
             QueueMode.Internal = true; // our own start, not a click to capture
@@ -305,6 +435,7 @@ internal static class ActionQueue
             finally { QueueMode.Internal = false; }
             if (started)
             {
+                entry.GatherRounds = 0;
                 Plugin.Log($"Queue: started {entry.Describe()}");
                 state.Current = entry.Stop == StopKind.None ? null : entry;
                 if (RunningAction is ActionComponent running) Arm(running, state.Current);
@@ -313,6 +444,7 @@ internal static class ActionQueue
             }
             s_lastSkip = $"{entry.Target.Label} ({reason})";
             Plugin.Log($"Queue: skipped {s_lastSkip}");
+            failsInARow++;
         }
         Save();
         return null;

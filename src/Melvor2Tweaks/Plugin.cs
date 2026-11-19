@@ -10,7 +10,7 @@ namespace Melvor2Tweaks;
 /// </summary>
 public static class Plugin
 {
-    public const string Version = "0.9.4";
+    public const string Version = "0.10.0";
     public const string HarmonyId = "net.zeldo.melvor2tweaks";
 
     private static HarmonyLib.Harmony? s_harmony;
@@ -20,6 +20,7 @@ public static class Plugin
         Settings.Load();
         TimeBank.TimeBankStore.Load();
         Actions.ActionQueue.Load();
+        Actions.ActionLog.Load();
 
         s_harmony = new HarmonyLib.Harmony(HarmonyId);
         s_harmony.PatchAll(typeof(Plugin).Assembly);
@@ -43,6 +44,7 @@ public static class Plugin
         try { UI.ActionsMenu.Detach(); } catch (Exception e) { Log("Actions menu teardown: " + e.Message); }
         try { UI.ItemsMenu.Detach(); } catch (Exception e) { Log("Items menu teardown: " + e.Message); }
         try { Actions.ActionQueue.Shutdown(); } catch (Exception e) { Log("Queue teardown: " + e.Message); }
+        try { Actions.ActionLog.Shutdown(); } catch (Exception e) { Log("Action log teardown: " + e.Message); }
         try { Actions.QueueMode.Shutdown(); } catch (Exception e) { Log("Queue mode teardown: " + e.Message); }
         try { UI.SettingsTab.DetachAll(); } catch (Exception e) { Log("Settings tab teardown: " + e.Message); }
         try { UI.FarmingButtons.DetachAll(); } catch (Exception e) { Log("Farming buttons teardown: " + e.Message); }
