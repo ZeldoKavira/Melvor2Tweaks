@@ -272,6 +272,27 @@ internal static class DevCommands
             case "queue-mode?":
                 Plugin.Log($"queue-mode is {(Actions.QueueMode.Enabled ? "on" : "off")}");
                 break;
+            case var sel when sel.StartsWith("select-recipe:"):
+            {
+                var parts = sel.Split(':');
+                TimeBank.TimeBank.Game!.Entities.TryGetObjectById(parts[1] + ":" + parts[2], out var ent);
+                var action = ent!.Components["Action"];
+                var recipes = HarmonyLib.Traverse.Create(action).Property("ActiveRecipes").GetValue() as System.Collections.IDictionary;
+                foreach (System.Collections.DictionaryEntry e in recipes!)
+                    if ((e.Key as GamesByMalcs.Melvor2.Data.INamespacedObject)?.Id == parts[3] + ":" + parts[4])
+                        HarmonyLib.AccessTools.Method(action.GetType(), "SelectRecipe")!.Invoke(action, new[] { e.Value });
+                break;
+            }
+            case "btn-state":
+                foreach (var view in UI.NodeSearch.All<Godot.Control>())
+                    if (view.GetType().Name == "ArtisanSelectedRecipeContainer" && view.IsVisibleInTree())
+                    {
+                        var btn = HarmonyLib.Traverse.Create(view).Property("CreateRecipeButton").GetValue<Godot.Button>();
+                        var act = HarmonyLib.Traverse.Create(view).Property("Action").GetValue();
+                        var selr = HarmonyLib.Traverse.Create(act).Property("SelectedRecipe").Property("Recipe").GetValue() as GamesByMalcs.Melvor2.Data.INamespacedObject;
+                        Plugin.Log($"btn-state: {selr?.Id} disabled={btn?.Disabled} queueMode={Actions.QueueMode.Enabled}");
+                    }
+                break;
             case "tick-rate":
                 Plugin.Log($"tick-rate: {GamesByMalcs.Melvor2.Core.Constants.TicksPerSecond}/s, interval {GamesByMalcs.Melvor2.Core.Constants.TickInterval} ms");
                 break;

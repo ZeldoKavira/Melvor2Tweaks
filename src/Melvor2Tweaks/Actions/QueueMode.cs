@@ -28,7 +28,64 @@ internal static class QueueMode
     internal static bool Enabled
     {
         get => s_enabled;
-        set { s_enabled = value; Godot.Engine.GetMainLoop()?.SetMeta(EnabledMeta, value); }
+        set
+        {
+            bool changed = s_enabled != value;
+            s_enabled = value;
+            Godot.Engine.GetMainLoop()?.SetMeta(EnabledMeta, value);
+            if (changed) RefreshCraftButtons();
+        }
+    }
+
+    private static readonly (string type, string handler, string update, string button)[] CraftViews =
+    {
+        ("GamesByMalcs.Melvor2.Components.ArtisanAction.ArtisanSelectedRecipeContainer", "CreateRecipeButtonPressedHandler", "UpdateCreateRecipeButton", "CreateRecipeButton"),
+        ("GamesByMalcs.Melvor2.Entities.Cooking.CookingSelectedRecipeContainer", "CreateRecipeButtonPressedHandler", "UpdateCreateRecipeButton", "CreateRecipeButton"),
+        ("GamesByMalcs.Melvor2.Entities.Herblore.HerbloreSelectedRecipeContainer", "CreateRecipeButtonPressedHandler", "UpdateCreateRecipeButton", "CreateRecipeButton"),
+        ("GamesByMalcs.Melvor2.Entities.Firemaking.FiremakingActionView", "StartButtonPressedHandler", "UpdateStartButton", "StartButton"),
+    };
+
+    /// <summary>
+    /// The game greys out a crafting Start button when you can't afford the recipe. In Queue mode it's
+    /// re-enabled (queuing needs no materials) - except for the recipe already being made.
+    /// </summary>
+    [HarmonyPatch]
+    private static class CraftButtonStatePatch
+    {
+        private static IEnumerable<MethodBase> TargetMethods()
+        {
+            foreach (var v in CraftViews)
+                if (typeof(ActionComponent).Assembly.GetType(v.type) is { } t && AccessTools.Method(t, v.update) is { } m) yield return m;
+        }
+
+        private static void Postfix(object __instance, MethodBase __originalMethod)
+        {
+            if (!Enabled) return;
+            var view = Traverse.Create(__instance);
+            string buttonName = Array.Find(CraftViews, v => v.update == __originalMethod.Name).button ?? "CreateRecipeButton";
+            if (view.Property(buttonName).GetValue() is not Godot.Button button || !button.Disabled) return;
+            var action = view.Property("Action").GetValue();
+            if (action == null) return;
+            var a = Traverse.Create(action);
+            var selected = a.Property("SelectedRecipe").GetValue();
+            if (selected == null || ReferenceEquals(selected, a.Property("CreatingRecipe").GetValue())) return;
+            button.Disabled = false;
+        }
+    }
+
+    /// <summary>Re-runs the game's button update on open crafting views (Queue mode switched on/off).</summary>
+    private static void RefreshCraftButtons()
+    {
+        try
+        {
+            foreach (var node in UI.NodeSearch.All<Godot.Control>())
+            {
+                string? name = node.GetType().FullName;
+                foreach (var v in CraftViews)
+                    if (name == v.type) AccessTools.Method(node.GetType(), v.update)?.Invoke(node, null);
+            }
+        }
+        catch (Exception e) { Plugin.Log("Queue mode: button refresh failed: " + e.Message); }
     }
 
     /// <summary>Set while the mod itself starts actions (queue advance, restore) so they aren't intercepted.</summary>
@@ -78,13 +135,7 @@ internal static class QueueMode
     {
         private static IEnumerable<MethodBase> TargetMethods()
         {
-            foreach (var (type, name) in new[]
-            {
-                ("GamesByMalcs.Melvor2.Components.ArtisanAction.ArtisanSelectedRecipeContainer", "CreateRecipeButtonPressedHandler"),
-                ("GamesByMalcs.Melvor2.Entities.Cooking.CookingSelectedRecipeContainer", "CreateRecipeButtonPressedHandler"),
-                ("GamesByMalcs.Melvor2.Entities.Herblore.HerbloreSelectedRecipeContainer", "CreateRecipeButtonPressedHandler"),
-                ("GamesByMalcs.Melvor2.Entities.Firemaking.FiremakingActionView", "StartButtonPressedHandler"),
-            })
+            foreach (var (type, name, _, _) in CraftViews)
             {
                 var t = typeof(ActionComponent).Assembly.GetType(type);
                 var m = t == null ? null : AccessTools.Method(t, name);
