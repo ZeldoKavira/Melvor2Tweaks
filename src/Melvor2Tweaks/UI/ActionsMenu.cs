@@ -80,7 +80,7 @@ internal static class ActionsMenu
         if (button.FindChild("Title", true, false) is Label title)
         {
             title.AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled;
-            title.ClipText = true;
+            title.ClipText = false;
             title.Text = "Actions";
             s_buttonLabel = title;
         }
@@ -493,7 +493,7 @@ internal static class ActionsMenu
         if (!Valid(s_button)) return;
         var state = ActionQueue.State;
         int queued = state?.Entries.Count ?? 0;
-        if (Valid(s_buttonLabel)) s_buttonLabel!.Text = QueueMode.Enabled ? $"Queue mode ({queued})" : queued > 0 ? $"Actions ({queued})" : "Actions";
+        if (Valid(s_buttonLabel)) s_buttonLabel!.Text = QueueMode.Enabled ? $"Queuing ({queued})" : queued > 0 ? $"Actions ({queued})" : "Actions";
         if (Valid(s_queueMode)) s_queueMode!.SetPressedNoSignal(QueueMode.Enabled);
         if (!Valid(s_popup) || !s_popup!.Visible) return;
 

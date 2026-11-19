@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Reflection;
+using GamesByMalcs.Melvor2.Components.CraftingAction;
 using GamesByMalcs.Melvor2.Components.Actions;
 using GamesByMalcs.Melvor2.Data;
 using Godot;
@@ -55,6 +58,70 @@ internal static class QueueMode
         }
 
         private static void Finalizer() => s_inTryStart--;
+    }
+
+    /// <summary>
+    /// Crafting Start buttons: queue the selected recipe straight away, without trying to start it - so a
+    /// recipe can be queued before you have the materials (earlier entries, or gather-first, get them).
+    /// Clicking Stop on the recipe being made still stops it.
+    /// </summary>
+    [HarmonyPatch]
+    private static class CraftButtonPatch
+    {
+        private static IEnumerable<MethodBase> TargetMethods()
+        {
+            foreach (var (type, name) in new[]
+            {
+                ("GamesByMalcs.Melvor2.Components.ArtisanAction.ArtisanSelectedRecipeContainer", "CreateRecipeButtonPressedHandler"),
+                ("GamesByMalcs.Melvor2.Entities.Cooking.CookingSelectedRecipeContainer", "CreateRecipeButtonPressedHandler"),
+                ("GamesByMalcs.Melvor2.Entities.Herblore.HerbloreSelectedRecipeContainer", "CreateRecipeButtonPressedHandler"),
+                ("GamesByMalcs.Melvor2.Entities.Firemaking.FiremakingActionView", "StartButtonPressedHandler"),
+            })
+            {
+                var t = typeof(ActionComponent).Assembly.GetType(type);
+                var m = t == null ? null : AccessTools.Method(t, name);
+                if (m != null) yield return m;
+                else Plugin.Log($"Queue mode: {type}.{name} not found");
+            }
+        }
+
+        private static bool Prefix(object __instance)
+        {
+            if (!Active) return true;
+            return !QueueCraft(Traverse.Create(__instance).Property("Action").GetValue() as ActionComponent);
+        }
+    }
+
+    /// <summary>True when the click was turned into a queue entry (skip the game's handler).</summary>
+    private static bool QueueCraft(ActionComponent? action)
+    {
+        var game = TimeBank.TimeBank.Game;
+        if (action == null || game == null) return false;
+        var t = Traverse.Create(action);
+        if (t.Property("SelectedRecipe").GetValue() is not IActiveCraftingRecipe selected) return false;
+        if (action.IsStarted && ReferenceEquals(selected, t.Property("CreatingRecipe").GetValue())) return false; // Stop
+        if (!selected.Recipe.Requirements.AreMet) { Plugin.Log("Queue mode: locked, not queued"); Captured?.Invoke("That recipe is locked - not queued."); return true; }
+
+        var target = new ActionTarget
+        {
+            EntityId = action.Entity.Id,
+            Ids = new[] { selected.Recipe.Id },
+            Label = $"{action.Entity.DisplayName.Text}: {selected.Recipe.DisplayName.Text}",
+        };
+        var (kind, value) = PendingRule();
+        if (kind == StopKind.Level) value = UI.UiKit.NextMilestoneLevel(action.Entity);
+        var entry = new QueueEntry { Target = target, Stop = kind, StopValue = value };
+        ActionQueue.Add(entry);
+        string status = "Queued: " + entry.Describe();
+        Plugin.Log("Queue mode: " + status);
+        if (ActionQueue.RunningAction is not { IsStarted: true })
+        {
+            Internal = true;
+            try { string why = ActionQueue.StartIfIdle(); if (why.Length > 0) status += " " + why; }
+            finally { Internal = false; }
+        }
+        Captured?.Invoke(status);
+        return true;
     }
 
     [HarmonyPatch(typeof(ActionComponent), nameof(ActionComponent.CurrentDescription), MethodType.Setter)]

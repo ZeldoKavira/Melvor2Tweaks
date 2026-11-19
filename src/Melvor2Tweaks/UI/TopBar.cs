@@ -68,7 +68,7 @@ internal static class TopBar
         if (button.FindChild("Title", true, false) is Label title)
         {
             title.AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled;
-            title.ClipText = true;
+            title.ClipText = false; // let the button widen to its text, like the game's own (Completion vs Quests)
             s_subLabel = title;
         }
         button.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;

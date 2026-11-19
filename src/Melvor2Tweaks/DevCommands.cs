@@ -235,6 +235,33 @@ internal static class DevCommands
             case "toggle-droplog":
                 UI.ActionsMenu.ToggleLog();
                 break;
+            case var qc when qc.StartsWith("qm-test-craft:"):
+            {
+                // qm-test-craft:<ns>:<entity>:<ns>:<recipe> - select the recipe and press the skill's Start button with Queue mode on
+                var parts = qc.Split(':');
+                var game = TimeBank.TimeBank.Game!;
+                game.Entities.TryGetObjectById(parts[1] + ":" + parts[2], out var ent);
+                var action = (GamesByMalcs.Melvor2.Components.Actions.ActionComponent)ent!.Components["Action"];
+                var recipes = HarmonyLib.Traverse.Create(action).Property("ActiveRecipes").GetValue() as System.Collections.IDictionary;
+                object? recipe = null;
+                foreach (System.Collections.DictionaryEntry e in recipes!)
+                    if ((e.Key as GamesByMalcs.Melvor2.Data.INamespacedObject)?.Id == parts[3] + ":" + parts[4]) recipe = e.Value;
+                HarmonyLib.AccessTools.Method(action.GetType(), "SelectRecipe")!.Invoke(action, new[] { recipe });
+                int before = Actions.ActionQueue.State?.Entries.Count ?? 0;
+                Actions.QueueMode.Enabled = true;
+                bool pressed = false;
+                foreach (var view in UI.NodeSearch.All<Godot.Control>())
+                {
+                    if (view.GetType().Name is not ("ArtisanSelectedRecipeContainer" or "CookingSelectedRecipeContainer" or "HerbloreSelectedRecipeContainer")) continue;
+                    if (!ReferenceEquals(HarmonyLib.Traverse.Create(view).Property("Action").GetValue(), action)) continue;
+                    HarmonyLib.AccessTools.Method(view.GetType(), "CreateRecipeButtonPressedHandler")!.Invoke(view, null);
+                    pressed = true;
+                    break;
+                }
+                Actions.QueueMode.Enabled = false;
+                Plugin.Log($"qm-test-craft: pressed={pressed} running={Actions.ActionQueue.RunningAction?.Entity.Id} queued {before} -> {Actions.ActionQueue.State?.Entries.Count}, last={Actions.ActionQueue.State?.Entries.LastOrDefault()?.Describe()}");
+                break;
+            }
             case "tick-rate":
                 Plugin.Log($"tick-rate: {GamesByMalcs.Melvor2.Core.Constants.TicksPerSecond}/s, interval {GamesByMalcs.Melvor2.Core.Constants.TickInterval} ms");
                 break;

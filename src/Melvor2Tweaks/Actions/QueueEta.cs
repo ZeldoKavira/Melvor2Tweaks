@@ -77,7 +77,7 @@ internal static class QueueEta
     }
 
     internal static string Describe(Eta eta) =>
-        eta.Endless ? "no end" : eta.GameMs is double ms ? "~" + Format(ms) : "time unknown";
+        eta.Endless ? "no end" : eta.GameMs is double ms ? "~" + Format(ms) : ""; // unknown: show nothing
 
     /// <summary>Running limit + every queued entry; text such as "~9h 30m", "at least ~2h", "no end".</summary>
     internal static (string current, List<string> entries, string total) All(Game game)
@@ -95,9 +95,8 @@ internal static class QueueEta
             else if (eta.GameMs is double ms) sum += ms;
             else unknown = true;
         }
-        string total = endless ? "no end (an entry runs until stopped)"
-            : unknown ? $"at least ~{Format(sum)} (some entries have never run, so no rate yet)"
-            : "~" + Format(sum);
+        // Only when every part is known (an "until it stops" gatherer means there's no end).
+        string total = endless ? "no end (an entry runs until stopped)" : unknown ? "" : "~" + Format(sum);
         return (Describe(cur), list, total);
     }
 }
