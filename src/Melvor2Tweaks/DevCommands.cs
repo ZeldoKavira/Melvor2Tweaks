@@ -283,6 +283,9 @@ internal static class DevCommands
                         HarmonyLib.AccessTools.Method(action.GetType(), "SelectRecipe")!.Invoke(action, new[] { e.Value });
                 break;
             }
+            case "cost-buttons":
+                Features.QueueFromCost.LogButtons();
+                break;
             case "btn-state":
                 foreach (var view in UI.NodeSearch.All<Godot.Control>())
                     if (view.GetType().Name == "ArtisanSelectedRecipeContainer" && view.IsVisibleInTree())
