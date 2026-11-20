@@ -324,6 +324,36 @@ internal static class DevCommands
                 Actions.ActionQueue.BumpCurrent();
                 Plugin.Log("bump: running " + (Actions.ActionQueue.RunningAction is { } ra ? Actions.SkillActions.Capture(ra)?.Label : "nothing") + "; queue " + string.Join(" | ", Actions.ActionQueue.State?.Entries.ConvertAll(e => e.Describe()) ?? new()));
                 break;
+            case "astro-info":
+            {
+                var agame = TimeBank.TimeBank.Game;
+                if (agame == null) break;
+                foreach (var e in agame.Entities.GetAllObjects())
+                    if (e.Components.TryGetValue("Action", out var ac) && ac is GamesByMalcs.Melvor2.Entities.Astrology.AstrologyActionComponent astro)
+                    {
+                        Plugin.Log($"astro: studied {astro.StudiedConstellation?.Constellation.Id}");
+                        foreach (var (c, active) in astro.ActiveConstellations)
+                        {
+                            Plugin.Log($"astro {c.Id}: knowledge {active.Knowledge:N0} (+{active.Stats.Knowledge.Value}/study), minor {active.MinorNodeUnlockCount}/{active.AvailableMinorNodeCount} avail of {c.MinorNodes.Count}, " +
+                                       $"major {active.MajorNodeUnlockCount}/{active.AvailableMajorNodeCount} avail of {c.MajorNodes.Count}, per major {c.MinorNodesPerMajorNode}, thresholds [{string.Join(",", c.MinorNodeUnlockKnowledge)}]");
+                            foreach (var n in c.MinorNodes.Concat(c.MajorNodes))
+                                if (n.UnlockRequirements.Conditions.Count > 0)
+                                    Plugin.Log($"   node {n.Id} {n.NodeType}: " + string.Join(" & ", n.UnlockRequirements.Conditions.Select(x => x.GetType().Name + (x is GamesByMalcs.Melvor2.Components.Experience.LevelCondition lc ? $" {lc.Component?.Entity?.Id} {lc.Level}" : "") + (x.IsMet ? "(met)" : "(unmet)"))));
+                        }
+                    }
+                break;
+            }
+            case var pp when pp.StartsWith("popup-press:"):
+                Plugin.Log("popup-press: " + (UI.QueueConditionPopup.DevPress(pp.Substring("popup-press:".Length)) ? "pressed" : "no popup / button"));
+                break;
+            case var po when po.StartsWith("popup-show:"):
+            {
+                // popup-show:<ns>:<entity>:<ns>:<id> - shows the Queue mode popup; picking only logs (nothing queued)
+                var p = po.Split(':');
+                var t = new Actions.ActionTarget { EntityId = p[1] + ":" + p[2], Ids = new[] { p[3] + ":" + p[4] }, Label = "TEST " + p[4] };
+                UI.QueueConditionPopup.Show(t, (k, v) => Plugin.Log($"popup-show: picked {k} {v}"), () => Plugin.Log("popup-show: cancelled"));
+                break;
+            }
             case "cost-buttons":
                 Features.QueueFromCost.LogButtons();
                 break;

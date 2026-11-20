@@ -49,6 +49,17 @@ internal static class QueueEta
                 return ActionLog.MsPerXp(log) is double perXp ? new Eta((to - from) * perXp, false) : Eta.Unknown;
             }
 
+            case StopKind.Nodes:
+            {
+                // Knowledge comes at a steady amount per study: studies left x time per study.
+                if (AstrologyGoal.Constellation(game, target) is not { } c) return Eta.Unknown;
+                double left = AstrologyGoal.KnowledgeLeft(c);
+                if (left <= 0) return new Eta(0, false);
+                double perStudy = c.Stats.Knowledge.Value;
+                return perStudy > 0 && ActionLog.MsPerAction(log) is double perStudyMs
+                    ? new Eta(Math.Ceiling(left / perStudy) * perStudyMs, false) : Eta.Unknown;
+            }
+
             default:
                 // Crafting runs until the materials run out; everything else until stopped.
                 if (Gather.CraftsAffordable(game, target) is not int crafts) return Eta.Forever;

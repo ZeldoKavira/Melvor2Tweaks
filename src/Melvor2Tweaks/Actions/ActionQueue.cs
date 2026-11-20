@@ -14,7 +14,8 @@ using HarmonyLib;
 
 namespace Melvor2Tweaks.Actions;
 
-public enum StopKind { None, Level, Items }
+/// <summary>Nodes: Astrology only - until every remaining node of the constellation could be unlocked.</summary>
+public enum StopKind { None, Level, Items, Nodes }
 
 public sealed class QueueEntry
 {
@@ -39,6 +40,7 @@ public sealed class QueueEntry
         StopKind.Level => $" - until level {StopValue}",
         StopKind.Items when CountItemId != null => $" - for {StopValue:N0} {ItemName(CountItemId)}",
         StopKind.Items => $" - for {StopValue:N0} items",
+        StopKind.Nodes => " - until all nodes",
         _ => " - until it stops",
     };
 
@@ -169,6 +171,8 @@ internal static class ActionQueue
     private static ActionComponent? s_armedAction;
     private static QueueEntry? s_armedEntry;
     private static ExperienceComponent? s_armedXp;
+    private static GamesByMalcs.Melvor2.Entities.Astrology.ActiveAstrologyConstellation? s_armedConstellation;
+    private static ExperienceComponent? s_armedAstroXp;
     private static int s_itemCount;
 
     internal static int ItemProgress => s_itemCount;
@@ -206,6 +210,23 @@ internal static class ActionQueue
         s_armedEntry = entry;
         s_itemCount = entry.Done;
         if (entry.Stop == StopKind.None) return; // tracked (to put back if overridden), nothing to count
+        if (entry.Stop == StopKind.Nodes)
+        {
+            var game = TimeBank.TimeBank.Game;
+            if (game == null || action is not GamesByMalcs.Melvor2.Entities.Astrology.AstrologyActionComponent astro ||
+                AstrologyGoal.Constellation(game, entry.Target) is not { } constellation)
+            {
+                Plugin.Log("Stop rule: \"until all nodes\" is for Astrology constellations only");
+                Disarm();
+                return;
+            }
+            s_armedConstellation = constellation;
+            s_armedAstroXp = AstrologyGoal.Xp(astro);
+            constellation.KnowledgeChanged += OnNodesProgress;
+            if (s_armedAstroXp != null) s_armedAstroXp.LevelChanged += OnNodesProgress;
+            CheckNodes();
+            return;
+        }
         if (entry.Stop == StopKind.Level)
         {
             s_armedXp = action.Entity.Components.Values.OfType<ExperienceComponent>().FirstOrDefault();
@@ -222,6 +243,9 @@ internal static class ActionQueue
     private static void Disarm()
     {
         if (s_armedXp != null) s_armedXp.LevelChanged -= OnLevelChanged;
+        if (s_armedConstellation != null) s_armedConstellation.KnowledgeChanged -= OnNodesProgress;
+        if (s_armedAstroXp != null) s_armedAstroXp.LevelChanged -= OnNodesProgress;
+        s_armedConstellation = null; s_armedAstroXp = null;
         if (s_armedAction != null) s_armedAction.Inventory.ItemAdded -= OnItemAdded;
         s_armedAction = null; s_armedEntry = null; s_armedXp = null; s_itemCount = 0;
     }
@@ -229,6 +253,13 @@ internal static class ActionQueue
     private static void OnLevelChanged(object? sender, GamesByMalcs.Melvor2.Core.ValueChangedEventArgs<int> e)
     {
         if (s_armedEntry != null && e.NewValue >= s_armedEntry.StopValue) RuleMet();
+    }
+
+    private static void OnNodesProgress<T>(object? sender, GamesByMalcs.Melvor2.Core.ValueChangedEventArgs<T> e) => CheckNodes();
+
+    private static void CheckNodes()
+    {
+        if (s_armedConstellation is { } c && s_armedEntry is { Stop: StopKind.Nodes } && AstrologyGoal.Ready(c, s_armedAstroXp)) RuleMet();
     }
 
     private static void OnItemAdded(object? sender, ItemAddedEventArgs e)
@@ -551,6 +582,13 @@ internal static class ActionQueue
             if (entry.Stop == StopKind.Level && LevelOf(game, entry.Target) is int lvl && lvl >= entry.StopValue)
             {
                 s_lastSkip = $"{entry.Target.Label} (already level {lvl})";
+                Plugin.Log($"Queue: skipped {s_lastSkip}");
+                failsInARow++;
+                continue;
+            }
+            if (entry.Stop == StopKind.Nodes && AstrologyGoal.Ready(game, entry.Target))
+            {
+                s_lastSkip = $"{entry.Target.Label} (every node can already be unlocked)";
                 Plugin.Log($"Queue: skipped {s_lastSkip}");
                 failsInARow++;
                 continue;

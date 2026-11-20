@@ -18,6 +18,8 @@ namespace Melvor2Tweaks.Actions;
 ///   - another target in the running skill (switches without a start): caught in the
 ///     CurrentDescription setter, which every live switch goes through
 /// Capture + restore happen once, deferred to the end of the frame, after the game's click handler.
+/// Then a popup asks when the queued action should stop (UI.QueueConditionPopup); nothing is queued
+/// until a condition is picked.
 /// </summary>
 internal static class QueueMode
 {
@@ -90,9 +92,6 @@ internal static class QueueMode
 
     /// <summary>Set while the mod itself starts actions (queue advance, restore) so they aren't intercepted.</summary>
     internal static bool Internal { get; set; }
-
-    /// <summary>Supplied by the Actions menu: the limit chosen there.</summary>
-    internal static Func<(StopKind kind, int value)> PendingRule = () => (StopKind.None, 0);
 
     /// <summary>Raised on the main thread with a status line for the menu.</summary>
     internal static event Action<string>? Captured;
@@ -174,20 +173,27 @@ internal static class QueueMode
             Ids = new[] { selected.Recipe.Id },
             Label = $"{action.Entity.DisplayName.Text}: {selected.Recipe.DisplayName.Text}",
         };
-        var (kind, value) = PendingRule();
-        if (kind == StopKind.Level) value = UI.UiKit.NextMilestoneLevel(action.Entity);
-        var entry = new QueueEntry { Target = target, Stop = kind, StopValue = value };
-        ActionQueue.Add(entry);
-        string status = "Queued: " + entry.Describe();
-        Plugin.Log("Queue mode: " + status);
-        if (ActionQueue.RunningAction is not { IsStarted: true })
-        {
-            Internal = true;
-            try { string why = ActionQueue.StartIfIdle(); if (why.Length > 0) status += " " + why; }
-            finally { Internal = false; }
-        }
-        Captured?.Invoke(status);
+        AskAndQueue(target);
         return true;
+    }
+
+    /// <summary>Asks when <paramref name="target"/> should stop, then queues it (and starts the queue if idle).</summary>
+    private static void AskAndQueue(ActionTarget target)
+    {
+        UI.QueueConditionPopup.Show(target, (kind, value) =>
+        {
+            var entry = new QueueEntry { Target = target, Stop = kind, StopValue = value };
+            ActionQueue.Add(entry);
+            string status = "Queued: " + entry.Describe();
+            Plugin.Log("Queue mode: " + status);
+            if (ActionQueue.RunningAction is not { IsStarted: true })
+            {
+                Internal = true;
+                try { string why = ActionQueue.StartIfIdle(); if (why.Length > 0) status += " " + why; }
+                finally { Internal = false; }
+            }
+            Captured?.Invoke(status);
+        }, () => Plugin.Log("Queue mode: not queued (cancelled) " + target.Label));
     }
 
     [HarmonyPatch(typeof(ActionComponent), nameof(ActionComponent.CurrentDescription), MethodType.Setter)]
@@ -236,6 +242,7 @@ internal static class QueueMode
 
         var target = started.IsStarted ? SkillActions.Capture(started) : null;
         string status;
+        ActionTarget? ask = null;
         Internal = true;
         try
         {
@@ -249,13 +256,8 @@ internal static class QueueMode
             }
             else
             {
-                var (kind, value) = PendingRule();
-                if (kind == StopKind.Level && game.Entities.TryGetObjectById(target.EntityId, out var entity) && entity != null)
-                    value = UI.UiKit.NextMilestoneLevel(entity); // the menu's number was for the running skill
-                var entry = new QueueEntry { Target = target, Stop = kind, StopValue = value };
-                ActionQueue.Add(entry);
-                status = "Queued: " + entry.Describe();
-                Plugin.Log("Queue mode: " + status);
+                status = "";
+                ask = target; // queued once a stop condition is picked
             }
 
             // Put back what was running before the click (or stop the instant start).
@@ -273,15 +275,14 @@ internal static class QueueMode
             }
             else if (!hadRestore && started.IsStarted)
             {
+                // Nothing was running: the queue starts once the popup's condition is picked.
                 started.TryStop();
-                // Nothing was running: rather than sit idle, start the queue (its first entry).
-                string why = ActionQueue.StartIfIdle();
-                if (why.Length > 0) status += " " + why;
             }
         }
         finally { Internal = false; }
 
         if (status.Length > 0) Captured?.Invoke(status);
+        if (ask != null) AskAndQueue(ask);
     }
 
     internal static void Shutdown()
@@ -289,5 +290,6 @@ internal static class QueueMode
         // Enabled is left as it is: it survives a hot reload (see EnabledMeta).
         s_scheduled = false; s_started = null; s_restore = null;
         Captured = null;
+        UI.QueueConditionPopup.Close();
     }
 }

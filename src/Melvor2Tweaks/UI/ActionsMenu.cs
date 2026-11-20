@@ -107,7 +107,6 @@ internal static class ActionsMenu
         button.AddChild(timer);
 
         ActionQueue.Changed += s_onChanged;
-        QueueMode.PendingRule = () => (Kind, s_value == null ? 0 : (int)s_value.Value);
         QueueMode.Captured += ShowStatus;
         Refresh();
     }
@@ -151,13 +150,14 @@ internal static class ActionsMenu
         s_queueMode = new CheckBox { Text = "Queue mode", FocusMode = Control.FocusModeEnum.None, AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled };
         s_queueMode.Toggled += on => { QueueMode.Enabled = on; Refresh(); };
         UiKit.AddTooltip(s_queueMode, "Queue mode",
-            "While on, clicking any skill's normal Start / Cut / Mine / Fight button adds it to the queue (with the limit below) " +
+            "While on, clicking any skill's normal Start / Cut / Mine / Fight button asks when it should stop, then adds it to the queue " +
             "instead of switching to it. Your current action keeps going.");
         header.AddChild(s_queueMode);
         var help = UiKit.HintIcon("How the queue works",
             "Add to queue: queues the action running now.\n" +
-            "Queue mode: click any skill's normal button to queue it instead; your current action keeps going (its progress bar restarts).\n" +
-            "Limits: \"Until it stops\" runs until the game stops it; \"Until level\" uses each skill's next milestone; \"For N items\" counts products, not side drops.\n" +
+            "Queue mode: click any skill's normal button, then pick when it should stop, to queue it instead; your current action keeps going (its progress bar restarts).\n" +
+            "Limits: \"Until it stops\" runs until the game stops it; \"Until level\"; \"For N items\" counts products, not side drops; " +
+            "\"Until all nodes\" (Astrology) studies until every node left in the constellation can be unlocked.\n" +
             "When the running action stops by itself - limit reached, out of materials, bank full, no traps - the next queued action starts. " +
             "Your own Stop does not advance the queue. When nothing is running, press Start (or tick Run queue) to begin it.\n" +
             "Loop: each action goes back on the end when it starts. Save / Load keep named queues.\n" +
@@ -184,6 +184,7 @@ internal static class ActionsMenu
         s_kind.AddItem("Until it stops", (int)StopKind.None);
         s_kind.AddItem("Until level", (int)StopKind.Level);
         s_kind.AddItem("For N items", (int)StopKind.Items);
+        s_kind.AddItem("Until all nodes", (int)StopKind.Nodes);
         s_kind.Select(0);
         s_value = new SpinBox { MinValue = 1, MaxValue = 1_000_000, Value = 100, CustomMinimumSize = new Vector2(120, 0), Visible = false };
         s_kind.ItemSelected += _ => SyncValueToKind();
@@ -280,7 +281,7 @@ internal static class ActionsMenu
     private static void SyncValueToKind()
     {
         if (!Valid(s_value)) return;
-        s_value!.Visible = Kind != StopKind.None;
+        s_value!.Visible = Kind is StopKind.Level or StopKind.Items;
         if (Kind != StopKind.Level) { s_value.MinValue = 1; return; }
         var running = ActionQueue.RunningAction;
         if (running == null) return;
@@ -710,6 +711,8 @@ internal static class ActionsMenu
         {
             StopKind.Level => $"Stops at level {rule.StopValue} (now {ActionQueue.CurrentLevel?.ToString() ?? "?"})",
             StopKind.Items => $"Stops after {rule.StopValue:N0} items ({ActionQueue.ItemProgress:N0} so far)",
+            StopKind.Nodes => "Stops when every node can be unlocked" +
+                              (TimeBank.TimeBank.Game is { } g && AstrologyGoal.Progress(g, rule.Target) is { Length: > 0 } p ? $" ({p})" : ""),
             _ => "Runs until it stops",
         };
         string currentEta = "";
