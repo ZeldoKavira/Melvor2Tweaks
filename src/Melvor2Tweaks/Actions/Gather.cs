@@ -26,6 +26,7 @@ internal static class Gather
         game.Entities.TryGetObjectById(entityId, out GameEntity? entity) && entity != null &&
         entity.Components.TryGetValue("Action", out var c) ? c as ActionComponent : null;
 
+    internal static IEnumerable<IActiveCraftingRecipe> AllCraftingRecipes(ActionComponent action) => CraftingRecipes(action);
     private static IEnumerable<IActiveCraftingRecipe> CraftingRecipes(ActionComponent action) =>
         Traverse.Create(action).Property("ActiveRecipes").GetValue() is IDictionary d
             ? d.Values.OfType<IActiveCraftingRecipe>() : Enumerable.Empty<IActiveCraftingRecipe>();

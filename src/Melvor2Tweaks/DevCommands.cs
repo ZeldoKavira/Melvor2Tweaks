@@ -88,6 +88,43 @@ internal static class DevCommands
                 }
                 break;
             }
+            case var bq when bq.StartsWith("bank:"):
+            {
+                string q = bq.Substring("bank:".Length);
+                foreach (var i in TimeBank.TimeBank.Game?.Data.GetDataRegistryOutput<GamesByMalcs.Melvor2.Data.Items.Item>().GetAllObjects()
+                             .Where(i => i.DisplayName.Singular.Contains(q, StringComparison.OrdinalIgnoreCase)).Take(15)
+                         ?? Enumerable.Empty<GamesByMalcs.Melvor2.Data.Items.Item>())
+                    Plugin.Log($"bank {i.Id}: {Features.ItemRules.InBank(i):N0}");
+                break;
+            }
+            case var us when us.StartsWith("uses:"):
+            {
+                // uses:<itemId> - crafting recipes and shop purchases that cost the item
+                var ug = TimeBank.TimeBank.Game;
+                string id = us.Substring("uses:".Length);
+                if (ug == null) break;
+                foreach (var e in ug.Entities.GetAllObjects())
+                    if (e.Components.TryGetValue("Action", out var ac) && ac is GamesByMalcs.Melvor2.Components.Actions.ActionComponent a)
+                        foreach (var r in Actions.Gather.AllCraftingRecipes(a))
+                            foreach (var v in r.Stats.ItemCost.Values)
+                                if (v.Value.Item.Id == id) Plugin.Log($"uses: {e.DisplayName.Text}: {r.Recipe.DisplayName.Text} x{v.Value.Quantity} (unlocked {r.Recipe.Requirements.AreMet})");
+                foreach (var sp in ug.Data.GetDataRegistryOutput<GamesByMalcs.Melvor2.Entities.Shop.ShopPurchase>().GetAllObjects())
+                    foreach (var c in sp.Costs.Items)
+                        if (c.Item.Id == id) Plugin.Log($"uses: shop {sp.Id} x{c.Quantity}");
+                break;
+            }
+            case "shop-bought":
+            {
+                var sg = TimeBank.TimeBank.Game;
+                if (sg == null) break;
+                foreach (var e in sg.Entities.GetAllObjects())
+                    foreach (var comp in e.Components.Values)
+                        if (comp is GamesByMalcs.Melvor2.Components.Shop.ShopComponent shop)
+                            foreach (var kv in shop.UpgradesPurchased)
+                                if (kv.Value > 0 && kv.Key.Costs.Items.Count > 0)
+                                    Plugin.Log($"bought {kv.Key.Id} x{kv.Value}: " + string.Join(", ", kv.Key.Costs.Items.Select(c => c.Quantity + " " + c.Item.Id)));
+                break;
+            }
             case var it when it.StartsWith("item-tags:"):
             {
                 string q = it.Substring("item-tags:".Length);
