@@ -431,8 +431,22 @@ internal static class ActionQueue
     }
 
     /// <summary>
-    /// Dev aid: puts <paramref name="first"/> at the front, the running entry's remainder right after it,
-    /// and starts <paramref name="first"/> now.
+    /// "Up" on the top entry: it starts now, and the current action goes back in the queue right after it
+    /// with what it had left (an action you started yourself goes back as "until it stops").
+    /// </summary>
+    internal static void BumpCurrent()
+    {
+        if (State is not { } s || s.Entries.Count == 0) return;
+        if (RunningAction is not { IsStarted: true }) { StartIfIdle(); return; }
+        var first = s.Entries[0];
+        s.Entries.RemoveAt(0);
+        Plugin.Log("Queue: moved up past the current action: " + first.Describe());
+        RunFirstNow(first);
+    }
+
+    /// <summary>
+    /// Puts <paramref name="first"/> at the front, the running action's remainder right after it, and
+    /// starts <paramref name="first"/> now.
     /// </summary>
     internal static void RunFirstNow(QueueEntry first)
     {
@@ -441,8 +455,18 @@ internal static class ActionQueue
         {
             int left = cur.Stop == StopKind.Items ? cur.StopValue - s_itemCount : cur.StopValue;
             if (cur.Stop != StopKind.Items || left > 0)
-                s.Entries.Insert(0, new QueueEntry { Target = cur.Target, Stop = cur.Stop, StopValue = left, CountItemId = cur.CountItemId, Resume = true });
+                s.Entries.Insert(0, new QueueEntry
+                {
+                    Target = cur.Target, Stop = cur.Stop, StopValue = left, CountItemId = cur.CountItemId,
+                    Auto = cur.Auto, Resume = true, GatherDepth = cur.GatherDepth, GatherRounds = cur.GatherRounds,
+                });
         }
+        else if (RunningAction is { IsStarted: true } running && SkillActions.Capture(running) is { } target)
+        {
+            s.Entries.Insert(0, new QueueEntry { Target = target, Stop = StopKind.None, Resume = true });
+        }
+        if (s.Entries.Count > 0 && !ReferenceEquals(s.Entries[0], first))
+            Plugin.Log("Queue: current action goes back in the queue: " + s.Entries[0].Describe());
         Disarm();
         s.Current = null;
         s.Entries.Insert(0, first);

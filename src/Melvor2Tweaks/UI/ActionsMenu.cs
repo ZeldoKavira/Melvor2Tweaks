@@ -761,8 +761,16 @@ internal static class ActionsMenu
             s_etaLabels.Add(eta);
             row.AddChild(eta);
             var up = TopBar.GameButton("Up");
-            up.Disabled = i == 0;
-            up.Pressed += () => ActionQueue.MoveUp(index);
+            if (i == 0)
+            {
+                // The top entry moves up past the running action: it starts now, the current action
+                // goes back in the queue behind it.
+                up.Disabled = ActionQueue.RunningAction is not { IsStarted: true };
+                up.Pressed += () => ActionQueue.BumpCurrent();
+                UiKit.AddTooltip(up, "Start now", "Stops the current action and starts this one. The current action goes back " +
+                                                   "in the queue right after it, with what it had left.");
+            }
+            else up.Pressed += () => ActionQueue.MoveUp(index);
             row.AddChild(up);
             var remove = TopBar.GameButton("X");
             remove.Pressed += () => ActionQueue.RemoveAt(index);

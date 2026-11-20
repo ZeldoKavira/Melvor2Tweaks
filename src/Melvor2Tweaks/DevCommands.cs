@@ -320,6 +320,10 @@ internal static class DevCommands
                         HarmonyLib.AccessTools.Method(action.GetType(), "SelectRecipe")!.Invoke(action, new[] { e.Value });
                 break;
             }
+            case "bump":
+                Actions.ActionQueue.BumpCurrent();
+                Plugin.Log("bump: running " + (Actions.ActionQueue.RunningAction is { } ra ? Actions.SkillActions.Capture(ra)?.Label : "nothing") + "; queue " + string.Join(" | ", Actions.ActionQueue.State?.Entries.ConvertAll(e => e.Describe()) ?? new()));
+                break;
             case "cost-buttons":
                 Features.QueueFromCost.LogButtons();
                 break;
