@@ -132,6 +132,10 @@ svg{stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-lin
 .tcard>.ic{width:44px;height:44px;align-self:flex-start}
 .tcard .chev{color:var(--faint);flex:none}.tcard .chev svg{width:16px;height:16px}
 .ic.xs{width:18px;height:18px}
+.seg.big button{padding:12px 6px;font-size:15px;display:flex;align-items:center;justify-content:center;gap:6px}
+.seg.big svg{width:16px;height:16px}
+.opt .eta{font-size:12px;color:var(--blue);white-space:nowrap;flex:none}
+.blue{color:var(--blue)}
 .jump{position:sticky;top:57px;z-index:5;display:flex;gap:6px;overflow-x:auto;padding:10px 0 6px;margin:0 -16px;padding-left:16px;padding-right:16px;
   background:linear-gradient(var(--bg) 70%,transparent);scrollbar-width:none}
 .jump::-webkit-scrollbar{display:none}
@@ -211,6 +215,12 @@ const ring = (pct, size, stroke, color = "url(#g)") => { const r = (size - strok
     <circle cx="${size/2}" cy="${size/2}" r="${r}" stroke="#2e2518" stroke-width="${stroke}"/>
     <circle cx="${size/2}" cy="${size/2}" r="${r}" stroke="${color}" stroke-width="${stroke}" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - Math.max(0, Math.min(1, pct)))}"/></svg>`; };
 
+// game time, like the in-game queue: "3h 10m"
+function dur(ms) {
+  if (ms == null || !isFinite(ms)) return "";
+  const s = Math.max(0, ms / 1000), d = Math.floor(s / 86400), h = Math.floor(s / 3600) % 24, m = Math.floor(s / 60) % 60;
+  return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : m ? `${m}m ${Math.floor(s % 60)}s` : `${Math.ceil(s)}s`;
+}
 function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } }
 const buzz = () => { try { navigator.vibrate && navigator.vibrate(8); } catch {} };
 
@@ -361,6 +371,11 @@ function renderQueue() {
     <label class="switch"><div class="grow"><b>Loop</b><div class="tiny muted">Entries go back on the end when they start</div></div><input type="checkbox" data-qtoggle="loop" ${q.loop ? "checked" : ""}></label>
     <label class="switch"><div class="grow"><b>Queue mode</b><div class="tiny muted">Clicking an action in the game queues it instead</div></div><input type="checkbox" data-qtoggle="mode" ${q.modeOn ? "checked" : ""}></label>
   </div>`;
+  const r = state.running;
+  h += `<h3>Running now</h3>` + (r ? `<div class="qitem first" style="border-color:#4f8a3e">${icon(r.icon, "sm")}
+      <div class="grow"><div class="small clamp2">${esc(r.label)}</div><div class="tiny muted">${esc(r.rule)}${r.eta && r.eta !== "no end" ? " · " + esc(r.eta) + " left" : ""}</div></div>
+      <button class="iconbtn" title="Stop" data-do="stop">${svg("stop")}</button></div>`
+    : `<div class="card empty">Nothing is running.</div>`);
   h += `<h3>${q.entries.length} queued${q.total ? `<span class="more" style="color:var(--muted)">${esc(q.total)}</span>` : ""}</h3>`;
   if (!q.entries.length) h += `<div class="card empty">The queue is empty.<br><button class="btn sm" style="margin-top:12px" data-tabgo="skills">Add from Skills</button></div>`;
   else h += `<div id="qlist">` + q.entries.map((e, i) => `<div class="qitem ${i === 0 ? "first" : ""}" data-qi="${i}">
@@ -419,6 +434,13 @@ function targetStats(t) {
   if (t.xpHour) parts.push(`${t.xpHourKnown ? "" : "~"}${short(t.xpHour)} XP/hr`);
   return parts.join(" · ");
 }
+// how long things take at this target's rate: next level, materials on hand
+function targetTimes(t) {
+  const parts = [];
+  if (t.toLevelMs != null && skill?.level) parts.push(`Lv ${skill.level.level + 1} in ~${dur(t.toLevelMs)}`);
+  if (t.matsMs) parts.push(`materials last ~${dur(t.matsMs)}`);
+  return parts.length ? `<div class="tiny blue" style="margin-top:2px">${svg("now", 'style="width:11px;height:11px;vertical-align:-1px"')} ${parts.join(" · ")}</div>` : "";
+}
 function itemsLine(t) {
   let h = "";
   if (t.costs?.length) h += `<div class="row" style="flex-wrap:wrap;gap:4px 10px;margin-top:6px">` + t.costs.map(c =>
@@ -434,7 +456,7 @@ function targetCard(t) {
   return `<button class="tcard ${t.unlocked ? "" : "locked"} ${t.running ? "running" : ""}" data-target="${data}">
     ${icon(t.icon)}<div class="grow">
       <div class="row" style="gap:6px;flex-wrap:wrap"><b class="small">${esc(t.name)}</b>${badges}</div>
-      ${t.unlocked ? `${targetStats(t) ? `<div class="tiny muted" style="margin-top:2px">${targetStats(t)}</div>` : ""}
+      ${t.unlocked ? `${targetStats(t) ? `<div class="tiny muted" style="margin-top:2px">${targetStats(t)}</div>` : ""}${targetTimes(t)}
         ${t.note ? `<div class="tiny gold" style="margin-top:2px">${esc(t.note)}</div>` : ""}${itemsLine(t)}`
       : `<div class="tiny red" style="margin-top:2px">${svg("lock", 'style="width:11px;height:11px;vertical-align:-1px"')} ${esc(t.needs || "Locked")}</div>`}
     </div><span class="chev">${svg('<path d="M9 6l6 6-6 6"/>')}</span></button>`;
@@ -473,24 +495,42 @@ async function openTarget(t) {
       <div style="font-size:19px;font-weight:800">${esc(t.name)}</div>${targetStats(t) ? `<div class="small muted">${targetStats(t)}</div>` : ""}</div></div>
     ${t.note ? `<div class="small gold" style="margin-bottom:6px">${esc(t.note)}</div>` : ""}${itemsLine(t)}
     ${t.done ? `<div class="tiny faint" style="margin-top:6px">${fmt(t.done)} done so far${t.running ? " · running now" : ""}${t.queued ? ` · in the queue ${t.queued}×` : ""}</div>` : ""}
-    <div class="small muted" style="margin:14px 2px 8px">When should it stop?</div>
-    <div class="seg" style="margin-bottom:12px"><button data-mode="queue" class="${sheetMode === "queue" ? "on" : ""}">Add to queue</button><button data-mode="start" class="${sheetMode === "start" ? "on" : ""}">Start now</button></div>
-    <button class="opt" data-pick="None"><b>Until stops</b><span class="small muted grow">${esc(o.stopsNote)}</span></button>`;
+    <div class="seg big" style="margin:14px 0 6px"><button data-mode="start" class="${sheetMode === "start" ? "on" : ""}">${svg("play")}Start now</button><button data-mode="queue" class="${sheetMode === "queue" ? "on" : ""}">${svg("queue")}Add to queue</button></div>
+    <div class="tiny muted" id="modeNote" style="margin:0 2px 12px"></div>
+    <div class="small muted" style="margin:0 2px 8px">When should it stop?</div>
+    <button class="opt" data-pick="None"><b>Until stops</b><span class="small muted grow">${esc(o.stopsNote)}</span>${t.matsMs ? eta(t.matsMs) : ""}</button>`;
+  const lvlEta = l => o.xpTo && t.msPerXp && o.xpTo[l] != null ? eta(o.xpTo[l] * t.msPerXp) : "";
   for (const m of o.milestones || [])
-    h += `<button class="opt" data-pick="Level" data-value="${m.level}"><b>Level ${m.level}</b><span class="small muted grow">${esc(m.reason)}</span></button>`;
+    h += `<button class="opt" data-pick="Level" data-value="${m.level}"><b>Level ${m.level}</b><span class="small muted grow">${esc(m.reason)}</span>${lvlEta(m.level)}</button>`;
   if (o.level != null && o.level < o.cap)
     h += `<div class="opt"><b>Level</b><input type="number" id="lvl" min="${o.level + 1}" max="${o.cap}" value="${o.nextMilestone}" style="width:84px">
-      <span class="tiny muted grow">now ${o.level}</span><button class="btn sm gold" data-pick="Level" data-input="lvl">Go</button></div>`;
+      <span class="tiny muted grow" id="lvlEta"></span><button class="btn sm gold" data-pick="Level" data-input="lvl">Go</button></div>`;
   if (o.items)
     h += `<div class="opt"><b>Items</b><input type="number" id="items" min="1" value="${store("items") || 100}" style="width:104px">
-      <span class="grow"></span><button class="btn sm gold" data-pick="Items" data-input="items">Go</button></div>`;
+      <span class="tiny muted grow" id="itemsEta"></span><button class="btn sm gold" data-pick="Items" data-input="items">Go</button></div>`;
   if (o.nodes)
     h += `<button class="opt" data-pick="Nodes"><b>All nodes</b><span class="small muted grow">${esc(o.nodes.ready ? "every node can already be unlocked" : o.nodes.progress)}${o.nodes.eta && !o.nodes.ready ? " (" + esc(o.nodes.eta) + ")" : ""}</span></button>`;
   h += `<button class="btn ghost block" style="margin-top:4px" data-do="close">Cancel</button>`;
   openSheet(h);
+  sheetInfo = { t, o };
+  sheetLive();
+}
+const eta = ms => `<span class="eta">~${dur(ms)}</span>`;
+let sheetInfo = null;
+// the parts of the stop sheet that follow what you pick or type
+function sheetLive() {
+  if (!sheetInfo) return;
+  const { t, o } = sheetInfo, note = $("#modeNote");
+  if (note) note.innerHTML = sheetMode === "start"
+    ? (o.replaces ? `Stops <b class="gold">${esc(o.replaces)}</b> and starts this right away.` : t.running ? "Already running: this sets when it stops." : "Starts right away.")
+    : (o.replaces || state?.running ? `Goes in the queue at #${o.queueLength + 1}; whatever is running keeps going.` : "Nothing is running, so it starts right away.");
+  const lv = $("#lvl"), le = $("#lvlEta");
+  if (lv && le) { const l = Number(lv.value); le.innerHTML = l > o.level && o.xpTo?.[l] != null && t.msPerXp ? `~${dur(o.xpTo[l] * t.msPerXp)}` : `now ${o.level}`; }
+  const it = $("#items"), ie = $("#itemsEta");
+  if (it && ie) { const n = Number(it.value); ie.innerHTML = n > 0 && t.msPerItem ? `~${dur(n * t.msPerItem)}` : ""; }
 }
 function openSheet(html) { $("#sheet").innerHTML = html; sheetOn = true; $("#scrim").classList.add("on"); $("#sheet").classList.add("on"); }
-function closeSheet() { sheetOn = false; $("#scrim").classList.remove("on"); $("#sheet").classList.remove("on"); render(); }
+function closeSheet() { sheetInfo = null; sheetOn = false; $("#scrim").classList.remove("on"); $("#sheet").classList.remove("on"); render(); }
 function ask(question, yes, onYes, danger = true) {
   askYes = onYes;
   openSheet(`<div class="grab"></div><div style="font-size:18px;font-weight:800;margin-bottom:16px">${esc(question)}</div>
@@ -499,7 +539,7 @@ function ask(question, yes, onYes, danger = true) {
 $("#scrim").addEventListener("click", closeSheet);
 $("#sheet").addEventListener("click", async e => {
   const mode = e.target.closest("[data-mode]");
-  if (mode) { sheetMode = mode.dataset.mode; store("mode", sheetMode); $("#sheet").querySelectorAll("[data-mode]").forEach(b => b.classList.toggle("on", b === mode)); return; }
+  if (mode) { sheetMode = mode.dataset.mode; store("mode", sheetMode); $("#sheet").querySelectorAll("[data-mode]").forEach(b => b.classList.toggle("on", b === mode)); sheetLive(); return; }
   const pick = e.target.closest("[data-pick]");
   if (pick && sheetTarget) {
     let value = Number(pick.dataset.value || 0);
@@ -517,6 +557,7 @@ $("#sheet").addEventListener("click", async e => {
   if (d.dataset.do === "skipgo") { const m = Number(d.dataset.minutes); closeSheet(); await act("skip", { minutes: m }); }
 });
 $("#sheet").addEventListener("input", e => {
+  if (e.target.id === "lvl" || e.target.id === "items") { sheetLive(); return; }
   if (e.target.id !== "sellqty") return;
   const it = JSON.parse(e.target.dataset.item), n = Math.max(0, Math.min(it.qty, Number(e.target.value) || 0));
   $("#sellval").textContent = short(n * it.each);

@@ -128,6 +128,8 @@ internal static class RemoteApi
         };
     }
 
+    private static int Cap(ExperienceComponent xp) => xp.LevelCap > 0 ? xp.LevelCap : 99;
+
     private static object Xp(ExperienceComponent xp)
     {
         double from = xp.Table.GetXpForLevel(xp.Level), to = xp.Table.GetXpForLevel(xp.Level + 1);
@@ -316,18 +318,27 @@ internal static class RemoteApi
             var at = new ActionTarget { EntityId = entity.Id, Ids = t.Ids };
             var (ms, xp) = StatsOf(t.Active);
             var log = ActionLog.Get(at);
-            double? xpHour = ActionLog.MsPerXp(log) is double msXp ? 3_600_000 / msXp : ms is double m && xp is double x ? x * 3_600_000 / m : null;
+            // Rates: the logged all-time rate once it has been done, else the game's own numbers (an estimate).
+            double? msPerXp = ActionLog.MsPerXp(log) ?? (ms is double m && xp is double x && x > 0 ? m / x : null);
+            double? msPerAction = ActionLog.MsPerAction(log) ?? ms;
+            double? msPerItem = ActionLog.MsPerItem(log, null) ?? msPerAction;
+            double? xpHour = msPerXp is double px ? 3_600_000 / px : null;
             var costs = Gather.Costs(game, at);
+            int? crafts = costs is { Count: > 0 } ? Gather.CraftsAffordable(game, at) : null;
+            double? toLevelMs = skillXp != null && skillXp.Level < Cap(skillXp) && msPerXp is double px2
+                ? Math.Max(0, skillXp.Table.GetXpForLevel(skillXp.Level + 1) - skillXp.Xp) * px2 : null;
+            double? matsMs = crafts is int n && n > 0 && msPerAction is double pa ? n * pa : null;
             return new
             {
                 ids = t.Ids, name = t.Name, icon = t.Icon, unlocked = t.Unlocked, needs = t.Needs, level = t.Level, note = t.Note,
                 secs = ms / 1000, xp, xpHour, xpHourKnown = log?.Xp > 0,
+                msPerXp, msPerItem, toLevelMs, matsMs,
                 done = log?.Actions,
                 running = running != null && running.EntityId == entity.Id && running.Ids.SequenceEqual(t.Ids),
                 queued = queue.Count(e => e.Target.EntityId == entity.Id && e.Target.Ids.SequenceEqual(t.Ids)),
                 products = t.Products.Take(6).Select(p => new { name = p.DisplayName.Plural, icon = Icons.Id(p), owned = ItemRules.InBank(p) }),
                 costs = costs?.Select(cst => new { name = cst.item.DisplayName.Plural, icon = Icons.Id(cst.item), qty = cst.qty, have = ItemRules.InBank(cst.item) }),
-                crafts = costs is { Count: > 0 } ? Gather.CraftsAffordable(game, at) : null,
+                crafts,
             };
         }
 
@@ -358,7 +369,12 @@ internal static class RemoteApi
         {
             stopsNote,
             level = xp?.Level,
-            cap = xp == null ? (int?)null : xp.LevelCap > 0 ? xp.LevelCap : 99,
+            cap = xp == null ? (int?)null : Cap(xp),
+            // XP still needed for each level above the current one: the phone times them with the target's rate
+            xpTo = xp == null ? null : Enumerable.Range(xp.Level + 1, Math.Max(0, Cap(xp) - xp.Level))
+                .ToDictionary(l => l.ToString(), l => Math.Max(0, xp.Table.GetXpForLevel(l) - xp.Xp)),
+            replaces = ActionQueue.RunningAction is { IsStarted: true } ra && SkillActions.Capture(ra) is { } rt && !rt.SameAs(target) ? rt.Label : null,
+            queueLength = ActionQueue.State?.Entries.Count ?? 0,
             nextMilestone = UI.UiKit.NextMilestoneLevel(entity),
             milestones = UI.UiKit.UpcomingMilestones(entity, 5).Select(m => new { level = m.level, reason = m.reason }),
             items = !astrology,
