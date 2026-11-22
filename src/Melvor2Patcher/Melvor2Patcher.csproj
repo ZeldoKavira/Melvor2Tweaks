@@ -3,6 +3,17 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <RollForward>Major</RollForward>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+  <!-- Release builds: one self-contained file per platform (no .NET install needed), see tools/release.ps1. -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>partial</TrimMode>
+    <DebugType>none</DebugType>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Mono.Cecil" Version="0.11.6" />

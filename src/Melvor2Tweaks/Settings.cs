@@ -24,6 +24,11 @@ public sealed class SettingAttribute(string category, string label, string descr
 /// <summary>User settings, stored as JSON in the game's user data folder (Melvor2Tweaks\settings.json).</summary>
 public sealed class Settings
 {
+    // ---- Updates -----------------------------------------------------------------------------------
+    [Setting("Updates", "Update automatically", "Download new versions of Melvor2Tweaks from GitHub (checked a little after the game starts and " +
+             "every 6 hours). Most updates apply immediately; a few need a game restart.")]
+    public bool AutoUpdate { get; set; } = true;
+
     // ---- Time bank (defaults mirror the Melvor 1 Offline Time Bank mod) ---------------------------
     [Setting("Time Bank", "Bank offline time", "Offline time goes into the time bank instead of being simulated when you return. Spend it from the top bar.")]
     public bool TimeBankEnabled { get; set; } = true;

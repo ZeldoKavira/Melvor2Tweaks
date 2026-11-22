@@ -37,10 +37,12 @@ public static class Plugin
         try { UI.FarmingButtons.AttachToExisting(); } catch (Exception e) { Log("Farming buttons: " + e); }
         try { Features.ItemRules.AttachToExisting(); } catch (Exception e) { Log("Item rules: " + e); }
         try { Features.QueueFromCost.AttachToExisting(); } catch (Exception e) { Log("Queue from cost: " + e); }
+        try { Updater.Start(); } catch (Exception e) { Log("Updater: " + e); }
     }
 
     public static void ModUnload()
     {
+        try { Updater.Stop(); } catch (Exception e) { Log("Updater teardown: " + e.Message); }
         try { UI.TopBar.Detach(); } catch (Exception e) { Log("Top bar teardown: " + e.Message); }
         try { UI.ActionsMenu.Detach(); } catch (Exception e) { Log("Actions menu teardown: " + e.Message); }
         try { UI.ItemsMenu.Detach(); } catch (Exception e) { Log("Items menu teardown: " + e.Message); }

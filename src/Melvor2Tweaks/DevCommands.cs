@@ -364,6 +364,12 @@ internal static class DevCommands
                 Plugin.Log("dump-data: wrote " + outPath);
                 break;
             }
+            case "update-check":
+                _ = Updater.CheckAndInstall(System.Threading.CancellationToken.None);
+                break;
+            case "update-force":
+                _ = Updater.CheckAndInstall(System.Threading.CancellationToken.None, force: true);
+                break;
             case "cost-buttons":
                 Features.QueueFromCost.LogButtons();
                 break;
