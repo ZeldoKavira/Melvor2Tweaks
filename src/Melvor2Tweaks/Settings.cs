@@ -43,8 +43,8 @@ public sealed class Settings
     public double BankRatio { get; set; } = 1.0;
 
     // ---- Phone access ------------------------------------------------------------------------------
-    [Setting("Phone access", "Phone access", "Serve a phone-friendly control page for this game on this PC (localhost only). Reach it from your " +
-             "phone through a Cloudflare Tunnel, and log in with the link from the Actions menu's Phone button.")]
+    [Setting("Phone access", "Phone access", "Control this game from your phone's browser: a phone-friendly page served by the mod. " +
+             "Set it up below, then scan the QR code with your phone.")]
     public bool RemoteEnabled { get; set; } = false;
 
     [Setting("Phone access", "Port", "Local port of the phone page (the tunnel points at http://localhost:<port>).", Min = 1024, Max = 65535, Step = 1)]
@@ -161,7 +161,7 @@ public sealed class Settings
     public static event Action? Changed;
 
     public static string DataDir => Path.Combine(OS.GetUserDataDir(), "Melvor2Tweaks");
-    private static string FilePath => Path.Combine(DataDir, "settings.json");
+    internal static string FilePath => Path.Combine(DataDir, "settings.json");
 
     private static readonly JsonSerializerOptions Json = new()
     {

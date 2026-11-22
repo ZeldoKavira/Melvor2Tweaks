@@ -382,6 +382,15 @@ internal static class DevCommands
                 Settings.Current.RemoteLan = Settings.Current.RemoteAllowedClients.Length > 0;
                 Settings.Save();
                 break;
+            case var qrc when qrc.StartsWith("qr-png:"):
+            {
+                // qr-png:<text> - writes the QR code for <text> to qr-test.png beside settings.json
+                string path = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Settings.FilePath)!, "qr-test.png");
+                var code = UI.QrCode.Encode(qrc.Substring("qr-png:".Length));
+                code.ToTexture(8).GetImage().SavePng(path);
+                Plugin.Log($"qr-png: version size {code.Size} -> {path}");
+                break;
+            }
             case "cost-buttons":
                 Features.QueueFromCost.LogButtons();
                 break;

@@ -96,6 +96,12 @@ internal static class RemoteApi
                 icon = EntityIcon(game, target.EntityId),
                 rule = ruleText,
                 eta = currentEta,
+                // the phone animates the action bar from these: game ms per action, how far along now
+                interval = running?.ActionTimer is { IsRunning: true } timer ? timer.WaitTime : (double?)null,
+                progress = running?.ActionTimer is { IsRunning: true } t2 ? t2.Progress : (double?)null,
+                xpHour = ActionLog.MsPerXp(ActionLog.Get(target)) is double msXp ? 3_600_000 / msXp : (double?)null,
+                itemsHour = ActionLog.MsPerItem(ActionLog.Get(target), null) is double msItem ? 3_600_000 / msItem : (double?)null,
+                actions = ActionLog.Get(target)?.Actions,
                 level = running?.Entity.Components.Values.OfType<ExperienceComponent>().FirstOrDefault() is { } xp ? Xp(xp) : null,
             },
             queue = new

@@ -155,6 +155,8 @@ internal static class SettingsTab
                 list.AddChild(prop.PropertyType == typeof(bool) ? ToggleRow(prop, attr!, kit)
                     : prop.PropertyType.IsEnum ? ChoiceRow(prop, attr!, kit)
                     : NumberRow(prop, attr!, kit));
+            if (group.Key == "Phone access")
+                list.AddChild(PhoneSetup.Build(kit.DescStyle));
             if (group.Key == "Items")
                 list.AddChild(Text("Auto-sell, auto-open and auto-bury are set per item in the top bar's Items menu " +
                                    "(or from an item's Sell panel in the bank).", kit.DescStyle));

@@ -124,7 +124,7 @@ internal static class ActionsMenu
         s_button = null; s_buttonLabel = null; s_popup = null; s_panel = null; s_current = null; s_rule = null;
         s_kind = null; s_value = null; s_enabled = null; s_start = null; s_loop = null; s_total = null; s_presetName = null; s_presets = null;
         s_presetSignature = null; s_queueBody = null; s_logBody = null; s_logToggle = null; s_logPick = null; s_logPickSignature = null;
-        s_logText = null; s_logReset = null; s_etaLabels.Clear(); s_queueMode = null; s_list = null; s_status = null; s_listSignature = null; s_phoneStatus = null; s_phoneOn = null; s_phoneLan = null;
+        s_logText = null; s_logReset = null; s_etaLabels.Clear(); s_queueMode = null; s_list = null; s_status = null; s_listSignature = null;
     }
 
     private static PanelContainer BuildPanel()
@@ -147,9 +147,6 @@ internal static class ActionsMenu
         s_logToggle.Pressed += ToggleLog;
         UiKit.AddTooltip(s_logToggle, "Drop log", "Everything each action has produced, for all time: actions, time, XP and items.");
         header.AddChild(s_logToggle);
-        var phone = TopBar.GameButton("Phone");
-        UiKit.AddTooltip(phone, "Phone access", "Control this game from your phone's browser: copy the login link, set the tunnel address.");
-        header.AddChild(phone);
         s_queueMode = new CheckBox { Text = "Queue mode", FocusMode = Control.FocusModeEnum.None, AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled };
         s_queueMode.Toggled += on => { QueueMode.Enabled = on; Refresh(); };
         UiKit.AddTooltip(s_queueMode, "Queue mode",
@@ -167,10 +164,6 @@ internal static class ActionsMenu
             "Crafting entries gather or make missing materials first (setting: Action queue). Time left is game time, from each action's all-time rate in the Drop log: speed makes it pass faster, and a 1h time-bank skip takes 1h off.");
         header.AddChild(help);
         body.AddChild(header);
-        var phoneBody = BuildPhoneBody();
-        phoneBody.Visible = false;
-        phone.Pressed += () => { phoneBody.Visible = !phoneBody.Visible; RefreshPhone(); };
-        body.AddChild(phoneBody);
         s_logBody = BuildLogBody();
         s_logBody.Visible = false;
         body.AddChild(s_logBody);
@@ -278,88 +271,6 @@ internal static class ActionsMenu
     }
 
     private static readonly Color Gold = new(0.98f, 0.8f, 0.3f);
-
-    // ---- phone access ------------------------------------------------------------------------------
-    private static Label? s_phoneStatus;
-    private static CheckBox? s_phoneOn;
-    private static CheckBox? s_phoneLan;
-
-    /// <summary>Phone access: on/off, the tunnel's public address, copy the login link, make a new key.</summary>
-    private static VBoxContainer BuildPhoneBody()
-    {
-        var box = new VBoxContainer();
-        box.AddThemeConstantOverride("separation", 6);
-        var top = new HBoxContainer();
-        top.AddThemeConstantOverride("separation", 6);
-        s_phoneOn = new CheckBox { Text = "Phone access", FocusMode = Control.FocusModeEnum.None, AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled };
-        s_phoneOn.Toggled += on => { Settings.Current.RemoteEnabled = on; Settings.Save(); RefreshPhone(); };
-        top.AddChild(s_phoneOn);
-        s_phoneStatus = TopBar.RawLabel("", 14, new Color(0.6f, 0.9f, 0.6f));
-        s_phoneStatus.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        s_phoneStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        top.AddChild(s_phoneStatus);
-        box.AddChild(top);
-
-        var urlRow = new HBoxContainer();
-        urlRow.AddThemeConstantOverride("separation", 6);
-        var url = new LineEdit
-        {
-            PlaceholderText = "Tunnel address, e.g. https://melvor.example.com",
-            Text = Settings.Current.RemotePublicUrl ?? "",
-            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
-        };
-        void SaveUrl() { Settings.Current.RemotePublicUrl = url.Text.Trim(); Settings.Save(); RefreshPhone(); }
-        url.TextSubmitted += _ => SaveUrl();
-        url.FocusExited += SaveUrl;
-        urlRow.AddChild(url);
-        var copy = TopBar.GameButton("Copy link");
-        copy.Pressed += () =>
-        {
-            SaveUrl();
-            DisplayServer.ClipboardSet(Remote.RemoteServer.LoginLink());
-            ShowStatus("Phone link copied. Send it to your phone and open it there once; it keeps you logged in.");
-        };
-        UiKit.AddTooltip(copy, "Copy link", "Copies the login link (tunnel address + your secret key). Anyone with it can control this game, so only send it to yourself.");
-        urlRow.AddChild(copy);
-        var reset = TopBar.GameButton("New key");
-        reset.Pressed += () => { Remote.RemoteServer.ResetKey(); ShowStatus("New key made: every phone is logged out until it opens the new link."); };
-        UiKit.AddTooltip(reset, "New key", "Logs every phone out. Use it if the link got out.");
-        urlRow.AddChild(reset);
-        box.AddChild(urlRow);
-
-        // A reverse proxy on another machine (e.g. Traefik on a home server) connects over the network.
-        var lanRow = new HBoxContainer();
-        lanRow.AddThemeConstantOverride("separation", 6);
-        s_phoneLan = new CheckBox { Text = "Let your server connect", FocusMode = Control.FocusModeEnum.None, AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled };
-        s_phoneLan.Toggled += on => { Settings.Current.RemoteLan = on; Settings.Save(); RefreshPhone(); };
-        UiKit.AddTooltip(s_phoneLan, "Let your server connect",
-            "Also listen on the network, accepting only the addresses typed here (your reverse proxy). Windows asks once whether to allow it.");
-        lanRow.AddChild(s_phoneLan);
-        var allowed = new LineEdit
-        {
-            PlaceholderText = "Server address, e.g. 192.168.1.10",
-            Text = Settings.Current.RemoteAllowedClients ?? "",
-            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
-        };
-        void SaveAllowed() { Settings.Current.RemoteAllowedClients = allowed.Text.Trim(); Settings.Save(); RefreshPhone(); }
-        allowed.TextSubmitted += _ => SaveAllowed();
-        allowed.FocusExited += SaveAllowed;
-        lanRow.AddChild(allowed);
-        box.AddChild(lanRow);
-        box.AddChild(new HSeparator());
-        return box;
-    }
-
-    private static void RefreshPhone()
-    {
-        if (Valid(s_phoneOn)) s_phoneOn!.SetPressedNoSignal(Settings.Current.RemoteEnabled);
-        if (Valid(s_phoneLan)) s_phoneLan!.SetPressedNoSignal(Settings.Current.RemoteLan);
-        if (!Valid(s_phoneStatus)) return;
-        s_phoneStatus!.Text = !Settings.Current.RemoteEnabled ? "Off"
-            : Remote.RemoteServer.Running ? $"On: http://localhost:{Remote.RemoteServer.Port}" +
-                                            (Settings.Current.RemoteLan ? $" + network ({Settings.Current.RemoteAllowedClients})" : "")
-            : $"Couldn't start: {Remote.RemoteServer.LastError}";
-    }
 
     private static StopKind Kind => s_kind == null ? StopKind.None : (StopKind)s_kind.GetSelectedId();
 
