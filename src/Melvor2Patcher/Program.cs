@@ -33,7 +33,7 @@ internal static class Program
     private const string LegacyGameDll = "GamesByMalcs.Melvor2.dll";
     private const string BootstrapName = "__Melvor2ModBootstrap";
     /// <summary>Bump when the injected code changes, so installs re-patch.</summary>
-    internal const int PatchVersion = 2;
+    internal const int PatchVersion = 3;
 
     private static int Main(string[] args)
     {
@@ -232,11 +232,12 @@ internal static class Program
         var tAlc = T(loader, "System.Runtime.Loader", "AssemblyLoadContext");
         var tConsole = T(console, "System", "Console");
         var tTextWriter = T(runtime, "System.IO", "TextWriter");
-        // Corlib-typed signatures must point at System.Runtime too, not at the library's own corlib reference.
-        var rVoid = T(runtime, "System", "Void"); rVoid.IsValueType = true;
-        var rString = T(runtime, "System", "String");
-        var rObject = T(runtime, "System", "Object");
-        var rBool = T(runtime, "System", "Boolean"); rBool.IsValueType = true;
+        // Primitive types in signatures must be the module's own (encoded as ELEMENT_TYPE_STRING etc.); a
+        // class TypeRef to System.String doesn't match the real method and fails with MissingMethodException.
+        var rVoid = tVoid;
+        var rString = tString;
+        var rObject = tObject;
+        var rBool = tBool;
 
         MethodReference M(TypeReference decl, string name, TypeReference ret, bool hasThis, params TypeReference[] ps)
         {
@@ -326,7 +327,22 @@ internal static class Program
             cctor.Body.GetILProcessor().Append(Instruction.Create(OpCodes.Ret));
             moduleType.Methods.Add(cctor);
         }
+        // try { __Melvor2ModBootstrap(); } catch (Exception) { } - in the initializer itself as well: if the
+        // bootstrap can't even be compiled (e.g. a runtime API changed), the exception is raised here, and an
+        // initializer that throws would break every use of the library - and with it the game.
+        var cil = cctor.Body.GetILProcessor();
         var first = cctor.Body.Instructions[0];
-        cctor.Body.GetILProcessor().InsertBefore(first, Instruction.Create(OpCodes.Call, boot));
+        var callBoot = Instruction.Create(OpCodes.Call, boot);
+        var leaveCall = Instruction.Create(OpCodes.Leave, first);
+        var popEx = Instruction.Create(OpCodes.Pop);
+        var leaveCatch = Instruction.Create(OpCodes.Leave, first);
+        cil.InsertBefore(first, callBoot);
+        cil.InsertBefore(first, leaveCall);
+        cil.InsertBefore(first, popEx);
+        cil.InsertBefore(first, leaveCatch);
+        cctor.Body.ExceptionHandlers.Insert(0, new ExceptionHandler(ExceptionHandlerType.Catch)
+        {
+            CatchType = tException, TryStart = callBoot, TryEnd = popEx, HandlerStart = popEx, HandlerEnd = first,
+        });
     }
 }
