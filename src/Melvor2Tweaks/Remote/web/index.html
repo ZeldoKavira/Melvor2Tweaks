@@ -107,9 +107,8 @@ svg{stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-lin
 .qitem{display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:rgba(0,0,0,.18);border:1px solid #33291b;transition:transform .15s,opacity .15s}
 .qitem+.qitem{margin-top:8px}
 .qitem.first{border-color:#6a5222;background:linear-gradient(90deg,rgba(242,193,78,.12),rgba(0,0,0,.18))}
-.qitem.dragging{opacity:.45}
-.qitem.over-up{box-shadow:0 -3px 0 var(--gold)}
-.qitem.over-down{box-shadow:0 3px 0 var(--gold)}
+.qitem.dragging{transition:none;position:relative;z-index:5;background:#2a2116;border-color:var(--gold);box-shadow:0 10px 28px rgba(0,0,0,.6)}
+#qlist .qitem{position:relative}
 .qnum{width:24px;height:24px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;background:#2e2518;color:var(--muted);border:1px solid #4a3c27}
 .qitem.first .qnum{background:var(--gold);color:#2a1d05;border-color:var(--gold)}
 .handle{width:28px;height:38px;flex:none;display:grid;place-items:center;color:var(--faint);touch-action:none;cursor:grab}
@@ -391,30 +390,57 @@ function renderQueue() {
   return h;
 }
 
-// drag to reorder (pointer events on the handle)
+// drag to reorder (pointer events on the handle): the row follows the finger, the others slide aside
 let dragging = null;
 document.addEventListener("pointerdown", e => {
   const hnd = e.target.closest("[data-handle]"); if (!hnd) return;
   e.preventDefault();
-  const from = Number(hnd.dataset.handle), item = hnd.closest(".qitem");
-  dragging = { from, to: from, item, id: e.pointerId };
+  const items = [...document.querySelectorAll("#qlist .qitem")];
+  const from = Number(hnd.dataset.handle), item = items[from];
+  if (!item) return;
+  // page positions at the start (they stay put while dragging; only transforms change)
+  const mids = items.map(el => { const r = el.getBoundingClientRect(); return r.top + scrollY + r.height / 2; });
+  const r = item.getBoundingClientRect(), step = items.length > 1 ? Math.abs(mids[1] - mids[0]) : r.height + 8;
+  dragging = { from, to: from, item, items, mids, step, startY: e.pageY, y: e.clientY, id: e.pointerId };
   item.classList.add("dragging"); hnd.setPointerCapture(e.pointerId); buzz();
+  autoScroll();
 });
-document.addEventListener("pointermove", e => {
+function dragMove(clientY) {
+  const d = dragging; if (!d) return;
+  d.y = clientY;
+  const dy = clientY + scrollY - d.startY, center = d.mids[d.from] + dy;
+  let to = d.from;
+  while (to < d.items.length - 1 && center > d.mids[to + 1]) to++;
+  while (to > 0 && center < d.mids[to - 1]) to--;
+  if (to !== d.to) buzz();
+  d.to = to;
+  d.item.style.transform = `translateY(${dy}px)`;
+  d.items.forEach((el, i) => {
+    if (i === d.from) return;
+    const shift = d.from < to && i > d.from && i <= to ? -d.step : d.from > to && i >= to && i < d.from ? d.step : 0;
+    el.style.transform = shift ? `translateY(${shift}px)` : "";
+  });
+}
+document.addEventListener("pointermove", e => { if (dragging && e.pointerId === dragging.id) dragMove(e.clientY); });
+// near the top or bottom of the screen, scroll so long queues can be reordered
+function autoScroll() {
+  const d = dragging; if (!d) return;
+  const edge = 70, h = innerHeight, v = d.y < edge + 60 ? -(edge + 60 - d.y) / 4 : d.y > h - edge - 70 ? (d.y - (h - edge - 70)) / 4 : 0;
+  if (v) { scrollBy(0, v); dragMove(d.y); }
+  requestAnimationFrame(autoScroll);
+}
+function dragEnd(e, cancel) {
   if (!dragging || e.pointerId !== dragging.id) return;
-  const items = [...document.querySelectorAll(".qitem")];
-  items.forEach(x => x.classList.remove("over-up", "over-down"));
-  let to = dragging.from;
-  for (const [i, el] of items.entries()) { const r = el.getBoundingClientRect(); if (e.clientY >= r.top && e.clientY <= r.bottom) { to = i; break; } }
-  dragging.to = to;
-  if (to !== dragging.from) items[to].classList.add(to < dragging.from ? "over-up" : "over-down");
-});
-document.addEventListener("pointerup", e => {
-  if (!dragging || e.pointerId !== dragging.id) return;
-  const { from, to } = dragging; dragging = null;
-  document.querySelectorAll(".qitem").forEach(x => x.classList.remove("over-up", "over-down", "dragging"));
-  if (to !== from) act("queue", { op: "move", i: from, to });
-});
+  const { from, to, items, item } = dragging; dragging = null;
+  item.classList.remove("dragging");
+  items.forEach(el => el.style.transform = "");
+  if (cancel || to === from) { render(); return; }
+  // show the new order at once (no snap back while the game answers)
+  const q = state.queue.entries; q.splice(to, 0, q.splice(from, 1)[0]); render();
+  act("queue", { op: "move", i: from, to });
+}
+document.addEventListener("pointerup", e => dragEnd(e, false));
+document.addEventListener("pointercancel", e => dragEnd(e, true));
 
 // ---- skills ----------------------------------------------------------------------------------
 function renderSkills() {
