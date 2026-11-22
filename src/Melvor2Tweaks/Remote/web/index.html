@@ -303,6 +303,15 @@ function openSheet(html) {
   $("#sheet").innerHTML = html; sheetOpen = true;
   $("#sheetBg").style.display = "block"; requestAnimationFrame(() => $("#sheet").classList.add("open"));
 }
+/** A yes/cancel question in the bottom sheet (no browser dialogs). */
+let askYes = null;
+function ask(question, yes, onYes) {
+  askYes = onYes;
+  openSheet(`<div class="handle"></div><div class="big" style="margin-bottom:14px">${esc(question)}</div>
+    <button class="btn danger" style="width:100%;margin-bottom:8px" data-do="askyes">${esc(yes)}</button>
+    <button class="btn" style="width:100%" data-do="close">Cancel</button>`);
+}
+
 function closeSheet() {
   sheetOpen = false; $("#sheet").classList.remove("open"); $("#sheetBg").style.display = "none"; render();
 }
@@ -327,6 +336,7 @@ $("#sheet").addEventListener("click", async e => {
   const d = e.target.closest("[data-do]");
   if (!d) return;
   if (d.dataset.do === "close") closeSheet();
+  if (d.dataset.do === "askyes") { const f = askYes; askYes = null; closeSheet(); if (f) await f(); }
   if (d.dataset.do === "sell" || d.dataset.do === "sellall") {
     const it = JSON.parse(d.dataset.item);
     const qty = d.dataset.do === "sellall" ? it.qty : Number($("#sellqty").value);
@@ -379,10 +389,10 @@ $("#view").addEventListener("click", async e => {
     if (x === "stop") return act("stop", {});
     if (x === "bump") return act("queue", { op: "bump" });
     if (x === "qstart") return act("queue", { op: "start" });
-    if (x === "qclear") { if (confirm("Clear the whole queue?")) act("queue", { op: "clear" }); return; }
+    if (x === "qclear") return ask("Clear the whole queue?", "Clear", () => act("queue", { op: "clear" }));
     if (x === "skills") { skill = null; render(); window.scrollTo(0, 0); return; }
-    if (x === "pload") { const n = $("#preset").value; if (n && confirm(`Replace the queue with "${n}"?`)) act("queue", { op: "load", name: n }); return; }
-    if (x === "pdel") { const n = $("#preset").value; if (n && confirm(`Delete "${n}"?`)) act("queue", { op: "delete", name: n }); return; }
+    if (x === "pload") { const n = $("#preset").value; if (n) ask(`Replace the queue with "${n}"?`, "Load", () => act("queue", { op: "load", name: n })); return; }
+    if (x === "pdel") { const n = $("#preset").value; if (n) ask(`Delete the saved queue "${n}"?`, "Delete", () => act("queue", { op: "delete", name: n })); return; }
     if (x === "psave") { const n = $("#pname").value.trim() || $("#preset").value; if (n) act("queue", { op: "save", name: n }); return; }
   }
   const q = e.target.closest("[data-q]");
