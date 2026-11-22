@@ -115,6 +115,10 @@ public static class Loader
         {
             string root = Path.GetDirectoryName(ModsDir)!;
             string dataDir = Path.GetDirectoryName(typeof(Main).Assembly.Location)!;
+            // Files an earlier re-patch renamed aside while they were in use (free now).
+            foreach (string lib in new[] { "Serilog.dll", "SmartFormat.dll", "GamesByMalcs.Melvor2.dll" })
+                foreach (string old in Directory.GetFiles(dataDir, lib + ".old*"))
+                    try { File.Delete(old); } catch { }
             string stampPath = Path.Combine(ModsDir, "patch.stamp");
             string patchDir = Path.Combine(ModsDir, "patcher");
             string expected = File.Exists(Path.Combine(patchDir, "patch-version.txt"))
