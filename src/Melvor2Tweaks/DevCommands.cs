@@ -354,6 +354,16 @@ internal static class DevCommands
                 UI.QueueConditionPopup.Show(t, (k, v) => Plugin.Log($"popup-show: picked {k} {v}"), () => Plugin.Log("popup-show: cancelled"));
                 break;
             }
+            case "dump-data":
+            {
+                using var f = Godot.FileAccess.Open("res://Data/Packages/MelvorBase.json", Godot.FileAccess.ModeFlags.Read);
+                string outPath = System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData),
+                    "Games By Malcs", "Melvor Idle 2", "Melvor2Tweaks", "MelvorBase.dump.json");
+                if (f == null) { Plugin.Log("dump-data: can't open package"); break; }
+                System.IO.File.WriteAllText(outPath, f.GetAsText());
+                Plugin.Log("dump-data: wrote " + outPath);
+                break;
+            }
             case "cost-buttons":
                 Features.QueueFromCost.LogButtons();
                 break;
