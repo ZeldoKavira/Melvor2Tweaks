@@ -5,7 +5,11 @@ using HarmonyLib;
 
 namespace Melvor2Tweaks.UI;
 
-/// <summary>"Harvest All" / "Plant All" for the selected farming category, next to the grain mill button.</summary>
+/// <summary>
+/// "Harvest All" / "Plant All" for the selected farming category, in a row of their own under the grain
+/// mill button in the Farm Buildings box. (The mill button sits in a MarginContainer, which stacks its
+/// children, so the row must not go in there or it covers the button.)
+/// </summary>
 internal static class FarmingButtons
 {
     private const string RowName = "Melvor2TweaksFarmingButtons";
@@ -25,7 +29,7 @@ internal static class FarmingButtons
     {
         foreach (var view in NodeSearch.All<FarmingActionView>())
         {
-            var row = Anchor(view)?.GetParent()?.GetNodeOrNull(RowName);
+            var row = Anchor(view)?.GetParent()?.GetParent()?.GetNodeOrNull(RowName);
             if (row == null) continue;
             row.GetParent().RemoveChild(row);
             row.QueueFree();
@@ -37,16 +41,21 @@ internal static class FarmingButtons
 
     private static void Attach(FarmingActionView view)
     {
-        var anchor = Anchor(view);
-        var parent = anchor?.GetParent();
-        if (parent == null || parent.GetNodeOrNull(RowName) != null) return;
+        var millBox = Anchor(view)?.GetParent() as Control; // MarginContainer around the mill button
+        var list = millBox?.GetParent();                       // the Farm Buildings VBox
+        if (millBox == null || list == null || list.GetNodeOrNull(RowName) != null) return;
 
-        var row = new HBoxContainer { Name = RowName, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
+        // Same margins as the game's rows in this box.
+        var box = new MarginContainer { Name = RowName };
+        foreach (string side in new[] { "margin_left", "margin_right", "margin_top", "margin_bottom" })
+            box.AddThemeConstantOverride(side, millBox.GetThemeConstant(side));
+        var row = new HBoxContainer();
         row.AddThemeConstantOverride("separation", 6);
         row.AddChild(MakeButton("Harvest All", "Harvest every grown plot in this category.", () => HarvestAll(view)));
         row.AddChild(MakeButton("Plant All", "Plant the selected seed in every empty plot of this category (if you can afford it).", () => PlantAll(view)));
-        parent.AddChild(row);
-        parent.MoveChild(row, anchor!.GetIndex() + 1);
+        box.AddChild(row);
+        list.AddChild(box);
+        list.MoveChild(box, millBox.GetIndex() + 1);
     }
 
     private static Button MakeButton(string text, string tooltip, System.Action onPressed)
@@ -55,7 +64,8 @@ internal static class FarmingButtons
         {
             Text = text,
             ThemeTypeVariation = "TexturedButton4x",
-            CustomMinimumSize = new Vector2(110, 40),
+            CustomMinimumSize = new Vector2(0, 28),
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
             AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled,
             FocusMode = Control.FocusModeEnum.None,
         };

@@ -211,6 +211,15 @@ internal static class DevCommands
                     break;
                 }
                 break;
+            case "dump-farm":
+                foreach (var fv in FindVisibleTree<GamesByMalcs.Melvor2.Entities.Farming.FarmingActionView>())
+                {
+                    var mill = HarmonyLib.Traverse.Create(fv).Property("GrainMillButton").GetValue<Node>();
+                    var top = mill?.GetParent()?.GetParent()?.GetParent();
+                    if (top != null) Dump(top, 0, 5);
+                    break;
+                }
+                break;
             case "close-settings":
                 foreach (var menu in FindVisibleTree<PauseMenu>()) menu.Close();
                 break;
