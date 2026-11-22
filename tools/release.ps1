@@ -16,6 +16,7 @@ $repoRoot = Split-Path $PSScriptRoot -Parent
 $dotnet = if ($env:DOTNET_EXE) { $env:DOTNET_EXE } else { 'dotnet' }   # set DOTNET_EXE if dotnet isn't on PATH
 $gh = if (Test-Path 'C:\Program Files\GitHub CLI\gh.exe') { 'C:\Program Files\GitHub CLI\gh.exe' } else { 'gh' }
 Set-Location $repoRoot
+[Environment]::CurrentDirectory = $repoRoot   # .NET calls below resolve relative paths against this, not the PowerShell location
 
 $version = [regex]::Match((Get-Content 'src\Melvor2Tweaks\Plugin.cs' -Raw), 'Version\s*=\s*"([^"]+)"').Groups[1].Value
 $patchVersion = [regex]::Match((Get-Content 'src\Melvor2Patcher\Program.cs' -Raw), 'PatchVersion\s*=\s*(\d+)').Groups[1].Value
