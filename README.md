@@ -35,8 +35,9 @@ script as a file) or `| bash -s -- --game-dir "/path/to/Melvor Idle 2"`.
 - **The mod updates itself.** A little after the game starts (and every 6 hours) it checks this repo's
   releases and installs a newer version in the background; most updates apply immediately. Turn this off
   under **Settings → Melvor2Tweaks → Updates**.
-- **Game updates are handled too.** Steam replaces the patched game file on every update; the next time
-  the game starts the mod notices, re-patches it and restarts the game once.
+- **Game updates don't remove it.** The mod hooks into two libraries the game ships (not the game's own
+  code), which Steam leaves alone unless they change. If an update does replace one, the mod still loads
+  through the other and puts the hook back for the next start.
 - Running the install line again also updates to the latest version.
 
 ### Uninstall
@@ -49,7 +50,7 @@ script as a file) or `| bash -s -- --game-dir "/path/to/Melvor Idle 2"`.
 curl -fsSL https://raw.githubusercontent.com/ZeldoKavira/Melvor2Tweaks/main/install/install.sh | bash -s -- --uninstall
 ```
 
-This restores the original game file and removes the mod. Your mod settings (in the game's user-data folder,
+This restores the original game files and removes the mod. Your mod settings (in the game's user-data folder,
 `Melvor2Tweaks`) are kept. "Verify integrity of game files" in Steam also undoes the patch.
 
 ## Features
@@ -83,11 +84,10 @@ Most of it can be switched off under **Settings → Melvor2Tweaks**.
 
 ## How it works
 
-The game has no mod support, so the installer adds a small hook to `GamesByMalcs.Melvor2.dll` (a backup is
-kept as `.orig`) that loads `mods/Melvor2Loader.dll`, which loads `mods/Melvor2Tweaks.dll` with
-[Harmony](https://github.com/pardeike/Harmony). An `override.cfg` beside the game registers
-`mods/melvor2_boot.gd`, a tiny startup script that re-runs the patcher (`mods/patcher/`) when a game update
-has replaced the DLL.
+The game has no mod support, so the patcher (`mods/patcher/`) adds a module initializer to two libraries the
+game ships, `Serilog.dll` and `SmartFormat.dll` (backups kept as `.orig`). It loads `mods/Melvor2Loader.dll`,
+which loads `mods/Melvor2Tweaks.dll` with [Harmony](https://github.com/pardeike/Harmony). The game's own
+code is never modified.
 
 ## Building
 

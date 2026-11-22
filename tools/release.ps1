@@ -6,8 +6,7 @@
 #   powershell -File tools\release.ps1 -Publish     # ... and publish release v<Plugin.Version>
 #
 # Zip layout (unpacks over the folder that holds the game's data_GamesByMalcs.Melvor2_* folder):
-#   override.cfg                          registers mods/melvor2_boot.gd as an autoload
-#   mods/Melvor2Loader.dll, 0Harmony.dll, Melvor2Tweaks.dll, melvor2_boot.gd, THIRD-PARTY-NOTICES.txt
+#   mods/Melvor2Loader.dll, 0Harmony.dll, Melvor2Tweaks.dll, THIRD-PARTY-NOTICES.txt
 #   mods/patcher/Melvor2Patcher[.exe|-arm64|-x64], mods/patcher/patch-version.txt
 
 param([switch]$Publish, [string]$Notes = '')
@@ -46,8 +45,6 @@ foreach ($platform in $platforms.Keys) {
         function Add($source, $entryName) {
             [void][System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $source, $entryName, 'Optimal')
         }
-        Add 'dist-files\override.cfg' 'override.cfg'
-        Add 'dist-files\mods\melvor2_boot.gd' 'mods/melvor2_boot.gd'
         Add 'THIRD-PARTY-NOTICES.txt' 'mods/THIRD-PARTY-NOTICES.txt'
         Add "$build\loader\Melvor2Loader.dll" 'mods/Melvor2Loader.dll'
         Add "$build\loader\0Harmony.dll" 'mods/0Harmony.dll'

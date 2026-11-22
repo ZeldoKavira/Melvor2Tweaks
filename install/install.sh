@@ -7,9 +7,8 @@
 #
 # Finds Melvor Idle 2 in your Steam libraries (native, Flatpak and Snap Steam; on a Steam Deck also the SD
 # card), downloads the latest release from GitHub, copies it into the game folder and patches the game once.
-# After that the mod keeps itself up to date and re-applies its patch by itself after game updates.
-# If you run the Windows version through Proton, this installs the Windows files and the game patches
-# itself on its first start (it restarts once).
+# After that the mod keeps itself up to date and re-applies its hook by itself if a game update undoes it.
+# Also works for the Windows version run through Proton.
 set -euo pipefail
 
 REPO="ZeldoKavira/Melvor2Tweaks"
@@ -68,23 +67,12 @@ unzip_to() {
   else fail "need unzip, bsdtar or python3 to unpack the download"; fi
 }
 
+# Earlier test builds registered a startup script in override.cfg; remove that line if present.
 remove_our_override() {
   cfg="$1/override.cfg"
   [ -f "$cfg" ] || return 0
   grep -v '^[[:space:]]*Melvor2TweaksBoot=' "$cfg" > "$cfg.tmp" || true
   if grep -qvE '^[[:space:]]*(\[autoload\])?[[:space:]]*$' "$cfg.tmp"; then mv "$cfg.tmp" "$cfg"; else rm -f "$cfg.tmp" "$cfg"; fi
-}
-
-merge_override() {
-  cfg="$1/override.cfg"; ours="$2"
-  line="$(grep -m1 '^Melvor2TweaksBoot=' "$ours")"
-  if [ ! -f "$cfg" ]; then cp "$ours" "$cfg"; return; fi
-  grep -q 'Melvor2TweaksBoot=' "$cfg" && return
-  if grep -q '^\[autoload\]' "$cfg"; then
-    awk -v l="$line" '{print} /^\[autoload\]/{print l}' "$cfg" > "$cfg.tmp" && mv "$cfg.tmp" "$cfg"
-  else
-    printf '\n[autoload]\n\n%s\n' "$line" >> "$cfg"
-  fi
 }
 
 # ---------------------------------------------------------------------------------------------------
@@ -114,16 +102,17 @@ patcher_path() {
     *) echo "$MODS/patcher/Melvor2Patcher" ;;
   esac
 }
-# A Windows patcher can't run here: under Proton the game patches itself on its first start instead.
-can_run_patcher() { [ "$PLATFORM" != windows ]; }
+# The patcher only edits .NET files, so for the Windows build under Proton the native Linux patcher
+# (from the Linux download) does the job; the Windows one stays in place for the mod to use in-game.
+native_patcher() {
+  if [ "$PLATFORM" = windows ]; then echo "$TMP/linux/mods/patcher/Melvor2Patcher"; else patcher_path; fi
+}
 
 if [ "$UNINSTALL" = 1 ]; then
-  P="$(patcher_path)"
-  if [ -f "$P" ] && can_run_patcher; then chmod +x "$P"; "$P" "$ROOT" --restore || true
-  elif [ "$PLATFORM" = windows ]; then
-    # No native patcher for the Proton build: put the original DLL back ourselves.
-    [ -f "$DATA_DIR/GamesByMalcs.Melvor2.dll.orig" ] && cp -f "$DATA_DIR/GamesByMalcs.Melvor2.dll.orig" "$DATA_DIR/GamesByMalcs.Melvor2.dll" && rm -f "$DATA_DIR/GamesByMalcs.Melvor2.dll.orig"
-  fi
+  # Put the original libraries back (the backups sit beside them as *.orig).
+  for f in Serilog.dll SmartFormat.dll GamesByMalcs.Melvor2.dll; do
+    if [ -f "$DATA_DIR/$f.orig" ]; then cp -f "$DATA_DIR/$f.orig" "$DATA_DIR/$f" && rm -f "$DATA_DIR/$f.orig"; fi
+  done
   for f in Melvor2Loader.dll Melvor2Loader.pdb Melvor2Loader.log 0Harmony.dll Melvor2Tweaks.dll Melvor2Tweaks.pdb \
            melvor2_boot.gd melvor2_boot.log patch.stamp THIRD-PARTY-NOTICES.txt; do rm -f "$MODS/$f"; done
   rm -f "$MODS"/*.old* 2>/dev/null || true
@@ -147,23 +136,27 @@ say "downloading $(basename "$URL") ($TAG)..."
 curl -fsSL -H 'User-Agent: Melvor2Tweaks-Installer' -o "$TMP/release.zip" "$URL"
 mkdir -p "$TMP/files"
 unzip_to "$TMP/release.zip" "$TMP/files"
+if [ "$PLATFORM" = windows ]; then
+  LINUX_URL="$(printf '%s' "$API_JSON" | grep '"browser_download_url"' | sed -E 's/.*"browser_download_url"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/' | grep -- "-linux.zip" | head -n1)"
+  [ -n "$LINUX_URL" ] || fail "release $TAG has no linux download (needed to patch the Proton build)."
+  curl -fsSL -H 'User-Agent: Melvor2Tweaks-Installer' -o "$TMP/linux.zip" "$LINUX_URL"
+  mkdir -p "$TMP/linux"
+  unzip_to "$TMP/linux.zip" "$TMP/linux"
+fi
 
 mkdir -p "$MODS"
-( cd "$TMP/files" && find . -type f ! -name override.cfg ) | while IFS= read -r rel; do
+( cd "$TMP/files" && find . -type f ) | while IFS= read -r rel; do
   rel="${rel#./}"
   mkdir -p "$ROOT/$(dirname "$rel")"
   cp -f "$TMP/files/$rel" "$ROOT/$rel"
 done
-merge_override "$ROOT" "$TMP/files/override.cfg"
-# macOS: Godot may read override.cfg beside the executable (Contents/MacOS) too.
-[ "$OS" = Darwin ] && [ -d "$(dirname "$ROOT")/MacOS" ] && merge_override "$(dirname "$ROOT")/MacOS" "$TMP/files/override.cfg"
+remove_our_override "$ROOT"
+rm -f "$MODS/melvor2_boot.gd"
 chmod +x "$MODS"/patcher/Melvor2Patcher* 2>/dev/null || true
 [ "$OS" = Darwin ] && xattr -dr com.apple.quarantine "$MODS" 2>/dev/null || true
 
-if can_run_patcher; then
-  say "patching the game..."
-  "$(patcher_path)" "$ROOT" | sed 's/^/Melvor2Tweaks: /'
-  say "installed $TAG. Start the game from Steam; the mod's buttons are in the top bar."
-else
-  say "installed $TAG (Windows build under Proton). The first start patches the game and restarts it once."
-fi
+P="$(native_patcher)"
+chmod +x "$P"
+say "patching the game..."
+"$P" "$ROOT" | sed 's/^/Melvor2Tweaks: /'
+say "installed $TAG. Start the game from Steam; the mod's buttons are in the top bar."

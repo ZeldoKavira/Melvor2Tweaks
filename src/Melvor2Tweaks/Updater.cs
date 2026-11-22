@@ -112,7 +112,6 @@ internal static class Updater
             byte[] data;
             using (var s = entry.Open()) using (var ms = new MemoryStream()) { s.CopyTo(ms); data = ms.ToArray(); }
 
-            if (entry.FullName == "override.cfg") { MergeOverride(target, data); continue; }
             if (File.Exists(target) && File.ReadAllBytes(target).AsSpan().SequenceEqual(data)) continue;
 
             string name = Path.GetFileName(target);
@@ -139,20 +138,6 @@ internal static class Updater
             File.Move(target, target + ".old" + DateTime.UtcNow.Ticks);
             File.Move(staged, target);
         }
-    }
-
-    /// <summary>override.cfg may hold the player's own settings: only add our autoload line if it's missing.</summary>
-    private static void MergeOverride(string target, byte[] ours)
-    {
-        string line = System.Text.Encoding.UTF8.GetString(ours).Split('\n').Select(l => l.Trim())
-            .FirstOrDefault(l => l.StartsWith("Melvor2TweaksBoot=")) ?? "";
-        if (line.Length == 0) return;
-        string text = File.Exists(target) ? File.ReadAllText(target) : "";
-        if (text.Contains("Melvor2TweaksBoot=")) return;
-        text = text.Contains("[autoload]")
-            ? text.Replace("[autoload]", "[autoload]\n" + line)
-            : text.TrimEnd() + (text.Length > 0 ? "\n\n" : "") + "[autoload]\n\n" + line + "\n";
-        File.WriteAllText(target, text);
     }
 
     /// <summary>Removes files renamed aside by an earlier update (no longer in use after a restart).</summary>

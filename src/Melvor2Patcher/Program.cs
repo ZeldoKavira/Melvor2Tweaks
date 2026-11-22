@@ -1,29 +1,39 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 
-// Adds one guarded call to the game's Godot entry point (GodotPlugins.Game.Main.InitializeFromGameProject)
-// that loads <root>/mods/Melvor2Loader.dll into the game's AssemblyLoadContext and calls
-// Melvor2Loader.Loader.Init(Assembly gameAssembly). <root> is the folder holding the game's
-// data_GamesByMalcs.Melvor2_<platform> folder: the game folder on Windows and Linux, and
-// "Melvor Idle 2.app/Contents/Resources" on macOS.
+// Hooks Melvor2Tweaks into Melvor Idle 2 without touching the game's own code.
 //
-// Safe to run while the game is open: the patched DLL is written beside the original and swapped in
-// (on Windows an in-use DLL is renamed out of the way first); it takes effect on the next start.
-// Writes <root>/mods/patch.stamp ("<md5 of the patched dll>\n<PatchVersion>") so the startup script
-// (mods/melvor2_boot.gd) can tell when a game update has replaced the DLL and re-run this.
+// The game DLL (GamesByMalcs.Melvor2.dll) changes with every game update, and Steam replaces it each time.
+// So instead this adds a module initializer to two third-party libraries the game ships and loads early -
+// Serilog.dll (the game's logger, created in Main's constructor) and SmartFormat.dll (set up by an autoload
+// before the main scene) - which Steam leaves alone unless they change. The initializer loads
+// <root>/mods/Melvor2Loader.dll into the game's AssemblyLoadContext and calls Melvor2Loader.Loader.Boot();
+// whichever library loads first wins, the loader ignores the second call. If an update does replace one of
+// them, the other still loads the mod, which then runs this patcher again (see Loader.SelfHeal).
+//
+// <root> is the folder holding the game's data_GamesByMalcs.Melvor2_<platform> folder: the game folder on
+// Windows and Linux, "Melvor Idle 2.app/Contents/Resources" on macOS. Mods live in <root>/mods.
+//
+// Safe to run while the game is open: patched files are written beside the originals and swapped in (on
+// Windows an in-use DLL is renamed out of the way first); they take effect on the next start.
+// Writes <root>/mods/patch.stamp ("<file>=<md5>" per patched file, then "patch=<PatchVersion>").
 //
 // Usage: Melvor2Patcher [root] [--restore] [--check]
 //   root defaults to two folders above this executable (it ships in <root>/mods/patcher/).
 
 internal static class Program
 {
-    private const string GameDll = "GamesByMalcs.Melvor2.dll";
+    /// <summary>Libraries that get the hook.</summary>
+    private static readonly string[] Targets = { "Serilog.dll", "SmartFormat.dll" };
+    /// <summary>Earlier versions patched the game DLL itself; that patch is undone.</summary>
+    private const string LegacyGameDll = "GamesByMalcs.Melvor2.dll";
     private const string BootstrapName = "__Melvor2ModBootstrap";
     /// <summary>Bump when the injected code changes, so installs re-patch.</summary>
-    internal const int PatchVersion = 1;
+    internal const int PatchVersion = 2;
 
     private static int Main(string[] args)
     {
@@ -36,38 +46,52 @@ internal static class Program
         string root = Path.GetFullPath(args.FirstOrDefault(a => !a.StartsWith("--"))
             ?? Path.Combine(AppContext.BaseDirectory, "..", ".."));
         string? dataDir = FindDataDir(root);
-        if (dataDir == null) { Console.Error.WriteLine($"No data_GamesByMalcs.Melvor2_* folder with {GameDll} under {root}"); return 2; }
-        string dll = Path.Combine(dataDir, GameDll);
-        string backup = dll + ".orig";
+        if (dataDir == null) { Console.Error.WriteLine($"No data_GamesByMalcs.Melvor2_* folder with {LegacyGameDll} under {root}"); return 2; }
         string stamp = Path.Combine(root, "mods", "patch.stamp");
         CleanOld(dataDir);
 
         if (args.Contains("--check"))
         {
-            bool ok = IsPatched(dll, dataDir);
-            Console.WriteLine(ok ? "patched" : "not patched");
-            return ok ? 0 : 3;
+            var missing = Targets.Where(t => !IsPatched(Path.Combine(dataDir, t), dataDir)).ToList();
+            Console.WriteLine(missing.Count == 0 ? "patched" : "not patched: " + string.Join(", ", missing));
+            return missing.Count == 0 ? 0 : 3;
         }
 
         if (args.Contains("--restore"))
         {
-            if (File.Exists(backup) && IsPatched(dll, dataDir))
-            {
-                Replace(backup, dll, copy: true);
-                Console.WriteLine("Restored the original game DLL.");
-            }
-            else Console.WriteLine("Game DLL is not patched; nothing to restore.");
-            TryDelete(backup);
+            foreach (var t in Targets.Append(LegacyGameDll)) Restore(Path.Combine(dataDir, t), dataDir);
             TryDelete(stamp);
             return 0;
         }
 
-        // Unpatched DLL = pristine (fresh install or game update): refresh the backup from it.
-        // Patched DLL = re-patch from the backup, so the patch can be changed and re-applied safely.
+        // The old hook in the game DLL would load the loader a second time: put the original back.
+        Restore(Path.Combine(dataDir, LegacyGameDll), dataDir);
+
+        var lines = new List<string>();
+        foreach (var t in Targets)
+        {
+            string dll = Path.Combine(dataDir, t);
+            if (!File.Exists(dll)) { Console.Error.WriteLine($"Not found: {dll}"); return 1; }
+            PatchFile(dll, dataDir);
+            lines.Add($"{t}={Md5(dll)}");
+        }
+        lines.Add($"patch={PatchVersion}");
+        Directory.CreateDirectory(Path.GetDirectoryName(stamp)!);
+        File.WriteAllText(stamp, string.Join("\n", lines) + "\n");
+        Console.WriteLine($"Mods load from {Path.Combine(root, "mods")}");
+        return 0;
+    }
+
+    /// <summary>
+    /// Patches one library. Unpatched = pristine (fresh install or the game updated it): refresh the backup
+    /// from it. Patched = re-patch from the backup, so a changed hook can be re-applied safely.
+    /// </summary>
+    private static void PatchFile(string dll, string dataDir)
+    {
+        string backup = dll + ".orig";
         if (IsPatched(dll, dataDir))
         {
-            if (!File.Exists(backup)) { Console.Error.WriteLine("The DLL is patched but the .orig backup is missing; verify the game files in Steam and run this again."); return 1; }
-            Console.WriteLine("Already patched - re-applying from the backup.");
+            if (!File.Exists(backup)) throw new Exception($"{Path.GetFileName(dll)} is patched but its .orig backup is missing; verify the game files in Steam and run this again.");
         }
         else
         {
@@ -80,24 +104,30 @@ internal static class Program
         using (var asm = AssemblyDefinition.ReadAssembly(new MemoryStream(File.ReadAllBytes(backup)),
                    new ReaderParameters { AssemblyResolver = resolver, ReadingMode = ReadingMode.Immediate }))
         {
-            Patch(asm.MainModule);
+            AddModuleInitializer(asm.MainModule, dataDir);
             asm.Write(temp);
         }
         Replace(temp, dll, copy: false);
-
-        Directory.CreateDirectory(Path.GetDirectoryName(stamp)!);
-        File.WriteAllText(stamp, Md5(dll) + "\n" + PatchVersion + "\n");
         Console.WriteLine($"Patched {dll}");
-        Console.WriteLine($"Mods load from {Path.Combine(root, "mods")}");
-        return 0;
     }
 
-    /// <summary>The data_GamesByMalcs.Melvor2_* folder (any platform) that holds the game DLL.</summary>
+    private static void Restore(string dll, string dataDir)
+    {
+        string backup = dll + ".orig";
+        if (File.Exists(dll) && File.Exists(backup) && IsPatched(dll, dataDir))
+        {
+            Replace(backup, dll, copy: true);
+            Console.WriteLine($"Restored {Path.GetFileName(dll)}");
+        }
+        TryDelete(backup);
+    }
+
+    /// <summary>The data_GamesByMalcs.Melvor2_* folder (any platform) that holds the game.</summary>
     private static string? FindDataDir(string root)
     {
         if (!Directory.Exists(root)) return null;
         return Directory.GetDirectories(root, "data_GamesByMalcs.Melvor2_*")
-            .FirstOrDefault(d => File.Exists(Path.Combine(d, GameDll)));
+            .FirstOrDefault(d => File.Exists(Path.Combine(d, LegacyGameDll)));
     }
 
     /// <summary>
@@ -119,8 +149,11 @@ internal static class Program
 
     private static void CleanOld(string dataDir)
     {
-        foreach (var f in Directory.GetFiles(dataDir, GameDll + ".old*")) TryDelete(f);
-        TryDelete(Path.Combine(dataDir, GameDll + ".new"));
+        foreach (var t in Targets.Append(LegacyGameDll))
+        {
+            foreach (var f in Directory.GetFiles(dataDir, t + ".old*")) TryDelete(f);
+            TryDelete(Path.Combine(dataDir, t + ".new"));
+        }
     }
 
     private static void TryDelete(string path) { try { if (File.Exists(path)) File.Delete(path); } catch { } }
@@ -134,23 +167,54 @@ internal static class Program
 
     private static bool IsPatched(string dll, string dataDir)
     {
+        if (!File.Exists(dll)) return false;
         var resolver = new DefaultAssemblyResolver();
         resolver.AddSearchDirectory(dataDir);
         using var asm = AssemblyDefinition.ReadAssembly(new MemoryStream(File.ReadAllBytes(dll)),
             new ReaderParameters { AssemblyResolver = resolver });
-        return asm.MainModule.GetType("GodotPlugins.Game.Main")?.Methods.Any(m => m.Name == BootstrapName) == true;
+        var module = asm.MainModule;
+        if (module.GetType("<Module>")?.Methods.Any(m => m.Name == BootstrapName) == true) return true;
+        // Older versions hooked the game's entry point instead.
+        return module.GetType("GodotPlugins.Game.Main")?.Methods.Any(m => m.Name == BootstrapName) == true;
     }
 
-    private static void Patch(ModuleDefinition module)
+    /// <summary>
+    /// Adds to the module:
+    /// <code>
+    /// static void __Melvor2ModBootstrap() {
+    ///   try {
+    ///     Assembly self = typeof(SomeTypeInThisModule).Assembly;
+    ///     string path = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(self.Location)), "mods", "Melvor2Loader.dll");
+    ///     if (File.Exists(path))
+    ///       AssemblyLoadContext.GetLoadContext(self).LoadFromAssemblyPath(path)
+    ///         .GetType("Melvor2Loader.Loader", true).GetMethod("Boot").Invoke(null, null);
+    ///   } catch (Exception e) { Console.Error.WriteLine(e); }
+    /// }
+    /// </code>
+    /// and calls it first thing in the module initializer (&lt;Module&gt;..cctor), which the runtime runs before
+    /// any other code in the library. When the other library already loaded the loader, LoadFromAssemblyPath
+    /// throws (same name, same context) and the catch swallows it.
+    /// </summary>
+    private static void AddModuleInitializer(ModuleDefinition module, string dataDir)
     {
-        TypeDefinition main = module.GetType("GodotPlugins.Game.Main")
-            ?? throw new Exception("GodotPlugins.Game.Main not found - game layout changed.");
-        MethodDefinition init = main.Methods.Single(m => m.Name == "InitializeFromGameProject");
+        TypeDefinition moduleType = module.GetType("<Module>") ?? throw new Exception("<Module> type not found");
+        TypeDefinition anchorType = module.Types.FirstOrDefault(t => t.Name != "<Module>" && !t.HasGenericParameters && t.IsClass)
+            ?? throw new Exception("no type to anchor typeof() on");
 
-        // --- references, scoped to the game's own framework assemblies -------------------------------
-        AssemblyNameReference runtime = module.AssemblyReferences.First(r => r.Name == "System.Runtime");
-        AssemblyNameReference loader = GetOrAddRef(module, "System.Runtime.Loader", runtime.Version);
-        AssemblyNameReference console = GetOrAddRef(module, "System.Console", runtime.Version);
+        // References scoped to the game's own runtime assemblies (works whether the library targets
+        // netstandard or net*).
+        AssemblyNameReference Ref(string name)
+        {
+            var existing = module.AssemblyReferences.FirstOrDefault(r => r.Name == name);
+            if (existing != null) return existing;
+            var def = AssemblyDefinition.ReadAssembly(Path.Combine(dataDir, name + ".dll")).Name;
+            var added = new AssemblyNameReference(def.Name, def.Version) { PublicKeyToken = def.PublicKeyToken };
+            module.AssemblyReferences.Add(added);
+            return added;
+        }
+        var runtime = Ref("System.Runtime");
+        var loader = Ref("System.Runtime.Loader");
+        var console = Ref("System.Console");
 
         TypeReference T(AssemblyNameReference scope, string ns, string name) => new TypeReference(ns, name, module, scope);
         var tVoid = module.TypeSystem.Void;
@@ -168,6 +232,11 @@ internal static class Program
         var tAlc = T(loader, "System.Runtime.Loader", "AssemblyLoadContext");
         var tConsole = T(console, "System", "Console");
         var tTextWriter = T(runtime, "System.IO", "TextWriter");
+        // Corlib-typed signatures must point at System.Runtime too, not at the library's own corlib reference.
+        var rVoid = T(runtime, "System", "Void"); rVoid.IsValueType = true;
+        var rString = T(runtime, "System", "String");
+        var rObject = T(runtime, "System", "Object");
+        var rBool = T(runtime, "System", "Boolean"); rBool.IsValueType = true;
 
         MethodReference M(TypeReference decl, string name, TypeReference ret, bool hasThis, params TypeReference[] ps)
         {
@@ -178,43 +247,35 @@ internal static class Program
 
         var getTypeFromHandle = M(tType, "GetTypeFromHandle", tType, false, tRth);
         var getAssembly = M(tType, "get_Assembly", tAssembly, true);
-        var getLocation = M(tAssembly, "get_Location", tString, true);
-        var getDirName = M(tPath, "GetDirectoryName", tString, false, tString);
-        var combine3 = M(tPath, "Combine", tString, false, tString, tString, tString);
-        var fileExists = M(tFile, "Exists", tBool, false, tString);
+        var getLocation = M(tAssembly, "get_Location", rString, true);
+        var getDirName = M(tPath, "GetDirectoryName", rString, false, rString);
+        var combine3 = M(tPath, "Combine", rString, false, rString, rString, rString);
+        var fileExists = M(tFile, "Exists", rBool, false, rString);
         var getLoadContext = M(tAlc, "GetLoadContext", tAlc, false, tAssembly);
-        var loadFromPath = M(tAlc, "LoadFromAssemblyPath", tAssembly, true, tString);
-        var asmGetType = M(tAssembly, "GetType", tType, true, tString, tBool);
-        var typeGetMethod = M(tType, "GetMethod", tMethodInfo, true, tString);
-        var invoke = M(tMethodBase, "Invoke", tObject, true, tObject, new ArrayType(tObject));
+        var loadFromPath = M(tAlc, "LoadFromAssemblyPath", tAssembly, true, rString);
+        var asmGetType = M(tAssembly, "GetType", tType, true, rString, rBool);
+        var typeGetMethod = M(tType, "GetMethod", tMethodInfo, true, rString);
+        var invoke = M(tMethodBase, "Invoke", rObject, true, rObject, new ArrayType(rObject));
         var getError = M(tConsole, "get_Error", tTextWriter, false);
-        var writeLine = M(tTextWriter, "WriteLine", tVoid, true, tObject);
+        var writeLine = M(tTextWriter, "WriteLine", rVoid, true, rObject);
 
-        // --- static void __Melvor2ModBootstrap() ------------------------------------------------------
-        // try {
-        //   Assembly game = typeof(Main).Assembly;
-        //   string path = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(game.Location)), "mods", "Melvor2Loader.dll");
-        //   if (File.Exists(path))
-        //     AssemblyLoadContext.GetLoadContext(game).LoadFromAssemblyPath(path)
-        //       .GetType("Melvor2Loader.Loader", true).GetMethod("Init").Invoke(null, new object[] { game });
-        // } catch (Exception e) { Console.Error.WriteLine(e); }
         var boot = new MethodDefinition(BootstrapName, MethodAttributes.Private | MethodAttributes.Static | MethodAttributes.HideBySig, tVoid);
         boot.Body.InitLocals = true;
-        var vGame = new VariableDefinition(tAssembly);
+        var vSelf = new VariableDefinition(tAssembly);
         var vPath = new VariableDefinition(tString);
-        boot.Body.Variables.Add(vGame);
+        var vEx = new VariableDefinition(tException);
+        boot.Body.Variables.Add(vSelf);
         boot.Body.Variables.Add(vPath);
+        boot.Body.Variables.Add(vEx);
         var il = boot.Body.GetILProcessor();
-
         var ret = Instruction.Create(OpCodes.Ret);
-        var leaveTarget = ret;
 
-        var tryStart = Instruction.Create(OpCodes.Ldtoken, main);
+        var tryStart = Instruction.Create(OpCodes.Ldtoken, anchorType);
         il.Append(tryStart);
         il.Emit(OpCodes.Call, getTypeFromHandle);
         il.Emit(OpCodes.Callvirt, getAssembly);
-        il.Emit(OpCodes.Stloc, vGame);
-        il.Emit(OpCodes.Ldloc, vGame);
+        il.Emit(OpCodes.Stloc, vSelf);
+        il.Emit(OpCodes.Ldloc, vSelf);
         il.Emit(OpCodes.Callvirt, getLocation);
         il.Emit(OpCodes.Call, getDirName);
         il.Emit(OpCodes.Call, getDirName);
@@ -224,64 +285,48 @@ internal static class Program
         il.Emit(OpCodes.Stloc, vPath);
         il.Emit(OpCodes.Ldloc, vPath);
         il.Emit(OpCodes.Call, fileExists);
-        var leaveTry = Instruction.Create(OpCodes.Leave, leaveTarget);
+        var leaveTry = Instruction.Create(OpCodes.Leave, ret);
         il.Emit(OpCodes.Brfalse, leaveTry);
-        il.Emit(OpCodes.Ldloc, vGame);
+        il.Emit(OpCodes.Ldloc, vSelf);
         il.Emit(OpCodes.Call, getLoadContext);
         il.Emit(OpCodes.Ldloc, vPath);
         il.Emit(OpCodes.Callvirt, loadFromPath);
         il.Emit(OpCodes.Ldstr, "Melvor2Loader.Loader");
         il.Emit(OpCodes.Ldc_I4_1);
         il.Emit(OpCodes.Callvirt, asmGetType);
-        il.Emit(OpCodes.Ldstr, "Init");
+        il.Emit(OpCodes.Ldstr, "Boot");
         il.Emit(OpCodes.Callvirt, typeGetMethod);
         il.Emit(OpCodes.Ldnull);
-        il.Emit(OpCodes.Ldc_I4_1);
-        il.Emit(OpCodes.Newarr, tObject);
-        il.Emit(OpCodes.Dup);
-        il.Emit(OpCodes.Ldc_I4_0);
-        il.Emit(OpCodes.Ldloc, vGame);
-        il.Emit(OpCodes.Stelem_Ref);
+        il.Emit(OpCodes.Ldnull);
         il.Emit(OpCodes.Callvirt, invoke);
         il.Emit(OpCodes.Pop);
         il.Append(leaveTry);
 
-        // catch (Exception e) { Console.Error.WriteLine(e); }
-        var vEx = new VariableDefinition(tException);
-        boot.Body.Variables.Add(vEx);
         var storeEx = Instruction.Create(OpCodes.Stloc, vEx);
         il.Append(storeEx);
         il.Emit(OpCodes.Call, getError);
         il.Emit(OpCodes.Ldloc, vEx);
         il.Emit(OpCodes.Callvirt, writeLine);
-        var leaveHandler = Instruction.Create(OpCodes.Leave, leaveTarget);
-        il.Append(leaveHandler);
+        il.Append(Instruction.Create(OpCodes.Leave, ret));
         il.Append(ret);
 
         boot.Body.ExceptionHandlers.Add(new ExceptionHandler(ExceptionHandlerType.Catch)
         {
-            CatchType = tException,
-            TryStart = tryStart,
-            TryEnd = storeEx,
-            HandlerStart = storeEx,
-            HandlerEnd = ret,
+            CatchType = tException, TryStart = tryStart, TryEnd = storeEx, HandlerStart = storeEx, HandlerEnd = ret,
         });
-        main.Methods.Add(boot);
+        moduleType.Methods.Add(boot);
 
-        // --- call it right after ScriptManagerBridge.LookupScriptsInAssembly(...) ----------------------
-        var anchor = init.Body.Instructions.FirstOrDefault(i =>
-            i.OpCode == OpCodes.Call && i.Operand is MethodReference mr && mr.Name == "LookupScriptsInAssembly")
-            ?? throw new Exception("LookupScriptsInAssembly call not found - game layout changed.");
-        init.Body.GetILProcessor().InsertAfter(anchor, Instruction.Create(OpCodes.Call, boot));
-    }
-
-    private static AssemblyNameReference GetOrAddRef(ModuleDefinition module, string name, Version version)
-    {
-        var existing = module.AssemblyReferences.FirstOrDefault(r => r.Name == name);
-        if (existing != null) return existing;
-        var runtime = module.AssemblyReferences.First(r => r.Name == "System.Runtime");
-        var added = new AssemblyNameReference(name, version) { PublicKeyToken = runtime.PublicKeyToken };
-        module.AssemblyReferences.Add(added);
-        return added;
+        // Call it first thing in the module initializer (create one if the library has none).
+        var cctor = moduleType.Methods.FirstOrDefault(m => m.IsConstructor && m.IsStatic);
+        if (cctor == null)
+        {
+            cctor = new MethodDefinition(".cctor",
+                MethodAttributes.Private | MethodAttributes.Static | MethodAttributes.HideBySig |
+                MethodAttributes.SpecialName | MethodAttributes.RTSpecialName, tVoid);
+            cctor.Body.GetILProcessor().Append(Instruction.Create(OpCodes.Ret));
+            moduleType.Methods.Add(cctor);
+        }
+        var first = cctor.Body.Instructions[0];
+        cctor.Body.GetILProcessor().InsertBefore(first, Instruction.Create(OpCodes.Call, boot));
     }
 }

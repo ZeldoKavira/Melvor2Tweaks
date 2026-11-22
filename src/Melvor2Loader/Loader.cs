@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using GamesByMalcs.Melvor2;
 using Godot;
@@ -11,9 +12,10 @@ using Godot;
 namespace Melvor2Loader;
 
 /// <summary>
-/// Stable mod loader with hot reload. Called once by the patched game DLL (Melvor2Patcher) from
-/// GodotPlugins.Game.Main.InitializeFromGameProject - Godot is NOT usable yet at that point, so Init
-/// only wires up assembly resolution and one Harmony hook on Main._Ready.
+/// Stable mod loader with hot reload. Started by a module initializer Melvor2Patcher adds to the game's
+/// Serilog.dll and SmartFormat.dll (Boot, whichever loads first), or by the older hook in the game DLL
+/// (Init). It only wires up assembly resolution and Harmony hooks on Main, then loads mods once Main is
+/// ready, and re-runs the patcher if a game update replaced one of the hooked libraries (SelfHeal).
 ///
 /// Mods are the other *.dll files in the mods folder. Each is loaded from bytes (the file stays
 /// unlocked) into its own load context that shares the game's assemblies and 0Harmony, and must expose
@@ -32,8 +34,15 @@ public static class Loader
     private static volatile bool s_dirty;
     private static DateTime s_lastChange;
 
+    private static bool s_initialized;
+
+    /// <summary>Entry point from the patched libraries.</summary>
+    public static void Boot() => Init(typeof(Main).Assembly);
+
     public static void Init(Assembly gameAssembly)
     {
+        if (s_initialized) return; // both hooked libraries call in
+        s_initialized = true;
         ModsDir = Path.GetDirectoryName(typeof(Loader).Assembly.Location)!;
         HostContext = AssemblyLoadContext.GetLoadContext(typeof(Loader).Assembly)!;
         try { File.WriteAllText(LogPath, ""); } catch { }
@@ -61,6 +70,10 @@ public static class Loader
         var harmony = new HarmonyLib.Harmony("net.zeldo.melvor2loader");
         harmony.Patch(HarmonyLib.AccessTools.Method(typeof(Main), nameof(Main._Ready)),
             postfix: new HarmonyLib.HarmonyMethod(typeof(Loader), nameof(OnMainReady)));
+        // Fallback in case Boot ran while Main._Ready was already executing (a postfix added then
+        // doesn't apply to that call): the first frame loads the mods instead.
+        harmony.Patch(HarmonyLib.AccessTools.Method(typeof(Main), nameof(Main._Process)),
+            postfix: new HarmonyLib.HarmonyMethod(typeof(Loader), nameof(OnMainReady)));
         Log("Waiting for Main._Ready");
     }
 
@@ -87,6 +100,62 @@ public static class Loader
 
         // Reloads run on the main thread, once the copy has settled.
         ((SceneTree)Engine.GetMainLoop()).ProcessFrame += Pump;
+
+        System.Threading.Tasks.Task.Run(SelfHeal);
+    }
+
+    /// <summary>
+    /// A game update can replace one of the libraries the patcher hooked (the mod still loaded through the
+    /// other one). Compares them with mods/patch.stamp and, if one changed, runs the patcher in the
+    /// background so the hook is back on the next start.
+    /// </summary>
+    private static void SelfHeal()
+    {
+        try
+        {
+            string root = Path.GetDirectoryName(ModsDir)!;
+            string dataDir = Path.GetDirectoryName(typeof(Main).Assembly.Location)!;
+            string stampPath = Path.Combine(ModsDir, "patch.stamp");
+            string patchDir = Path.Combine(ModsDir, "patcher");
+            string expected = File.Exists(Path.Combine(patchDir, "patch-version.txt"))
+                ? File.ReadAllText(Path.Combine(patchDir, "patch-version.txt")).Trim() : "";
+            var stamp = File.Exists(stampPath)
+                ? File.ReadAllLines(stampPath).Select(l => l.Split('=', 2)).Where(p => p.Length == 2).ToDictionary(p => p[0], p => p[1].Trim())
+                : new Dictionary<string, string>();
+
+            var changed = new List<string>();
+            foreach (string lib in new[] { "Serilog.dll", "SmartFormat.dll" })
+            {
+                string path = Path.Combine(dataDir, lib);
+                if (!stamp.TryGetValue(lib, out var md5) || !File.Exists(path) || Md5(path) != md5) changed.Add(lib);
+            }
+            if (expected.Length > 0 && (!stamp.TryGetValue("patch", out var v) || v != expected)) changed.Add("patch version " + expected);
+            if (changed.Count == 0) return;
+
+            string exe = OperatingSystem.IsWindows() ? "Melvor2Patcher.exe"
+                : OperatingSystem.IsMacOS() ? (RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "Melvor2Patcher-arm64" : "Melvor2Patcher-x64")
+                : "Melvor2Patcher";
+            string patcher = Path.Combine(patchDir, exe);
+            if (!File.Exists(patcher)) { Log($"Hook needs re-applying ({string.Join(", ", changed)}) but {patcher} is missing - run the installer again."); return; }
+            if (!OperatingSystem.IsWindows())
+                File.SetUnixFileMode(patcher, File.GetUnixFileMode(patcher) | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
+
+            Log($"Re-applying the hook ({string.Join(", ", changed)} changed)");
+            var psi = new System.Diagnostics.ProcessStartInfo(patcher) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+            psi.ArgumentList.Add(root);
+            using var proc = System.Diagnostics.Process.Start(psi)!;
+            string output = proc.StandardOutput.ReadToEnd() + proc.StandardError.ReadToEnd();
+            proc.WaitForExit();
+            Log($"Patcher exit {proc.ExitCode}: {output.Trim()}");
+        }
+        catch (Exception e) { Log("Self-heal failed: " + e.Message); }
+    }
+
+    private static string Md5(string path)
+    {
+        using var md5 = System.Security.Cryptography.MD5.Create();
+        using var f = File.OpenRead(path);
+        return Convert.ToHexString(md5.ComputeHash(f)).ToLowerInvariant();
     }
 
     private static void OnFileEvent(object sender, FileSystemEventArgs e)

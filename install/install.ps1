@@ -6,7 +6,7 @@
 #
 # Finds Melvor Idle 2 in your Steam libraries, downloads the latest release from GitHub, copies it into the
 # game folder and patches the game once. After that the mod keeps itself up to date and re-applies its
-# patch by itself after game updates. Your settings live in %APPDATA%\Games By Malcs\Melvor Idle 2\Melvor2Tweaks
+# hook by itself if a game update undoes it. Your settings live in %APPDATA%\Games By Malcs\Melvor Idle 2\Melvor2Tweaks
 # and are kept on uninstall.
 
 param(
@@ -61,23 +61,13 @@ function Find-Root($dir) {
     if ($data) { $data.Parent.FullName } else { $null }
 }
 
+# Earlier test builds registered a startup script in override.cfg; remove that line if present.
 function Remove-OurOverride($root) {
     $cfg = Join-Path $root 'override.cfg'
     if (-not (Test-Path $cfg)) { return }
     $lines = Get-Content $cfg | Where-Object { $_ -notmatch '^\s*Melvor2TweaksBoot=' }
     $meaningful = $lines | Where-Object { $_.Trim() -ne '' -and $_.Trim() -ne '[autoload]' }
     if (-not $meaningful) { Remove-Item $cfg -Force } else { Set-Content -Path $cfg -Value $lines -Encoding UTF8 }
-}
-
-function Merge-Override($root, $ours) {
-    $cfg = Join-Path $root 'override.cfg'
-    $line = (Get-Content $ours | Where-Object { $_ -match '^\s*Melvor2TweaksBoot=' } | Select-Object -First 1).Trim()
-    if (-not (Test-Path $cfg)) { Copy-Item $ours $cfg; return }
-    $text = Get-Content $cfg -Raw
-    if ($text -match 'Melvor2TweaksBoot=') { return }
-    if ($text -match '\[autoload\]') { $text = $text -replace '\[autoload\]', "[autoload]`n$line" }
-    else { $text = $text.TrimEnd() + "`n`n[autoload]`n`n$line`n" }
-    [IO.File]::WriteAllText($cfg, $text)
 }
 
 # ---------------------------------------------------------------------------------------------------
@@ -123,13 +113,14 @@ try {
     Get-ChildItem $out -Recurse -File | Unblock-File
 
     New-Item -ItemType Directory -Path $mods -Force | Out-Null
-    Get-ChildItem $out -Recurse -File | Where-Object { $_.Name -ne 'override.cfg' } | ForEach-Object {
+    Get-ChildItem $out -Recurse -File | ForEach-Object {
         $rel = $_.FullName.Substring($out.Length + 1)
         $dest = Join-Path $root $rel
         New-Item -ItemType Directory -Path (Split-Path $dest) -Force | Out-Null
         Copy-Item $_.FullName $dest -Force
     }
-    Merge-Override $root (Join-Path $out 'override.cfg')
+    Remove-OurOverride $root
+    Remove-Item (Join-Path $mods 'melvor2_boot.gd') -Force -ErrorAction SilentlyContinue
 
     Say 'patching the game...'
     & $patcher $root | ForEach-Object { Say $_ }
