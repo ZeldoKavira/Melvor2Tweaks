@@ -127,7 +127,7 @@ internal static class Gather
         return best;
     }
 
-    private static string PlainText(string bbcode) =>
+    internal static string PlainText(string bbcode) =>
         System.Text.RegularExpressions.Regex.Replace(
             System.Text.RegularExpressions.Regex.Replace(bbcode, @"\[img[^\]]*\].*?\[/img\]", ""), @"\[[^\]]*\]", "").Trim();
 

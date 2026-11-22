@@ -370,6 +370,12 @@ internal static class DevCommands
             case "update-force":
                 _ = Updater.CheckAndInstall(System.Threading.CancellationToken.None, force: true);
                 break;
+            case "remote:on":
+            case "remote:off":
+                Settings.Current.RemoteEnabled = cmd == "remote:on";
+                Settings.Save();
+                Plugin.Log($"remote: {(Remote.RemoteServer.Running ? "listening on " + Remote.RemoteServer.Port : "off " + Remote.RemoteServer.LastError)}");
+                break;
             case "cost-buttons":
                 Features.QueueFromCost.LogButtons();
                 break;

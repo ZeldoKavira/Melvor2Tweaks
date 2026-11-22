@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Remote\web\index.html" LogicalName="Melvor2Tweaks.Remote.web.index.html" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Shared at runtime from the game's load context (loaded once by the patched game). -->
     <ProjectReference Include="..\Melvor2Loader\Melvor2Loader.csproj" Private="false" GlobalPropertiesToRemove="Deploy" />
   </ItemGroup>

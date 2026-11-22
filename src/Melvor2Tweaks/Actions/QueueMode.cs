@@ -104,7 +104,10 @@ internal static class QueueMode
     private static QueueEntry? s_savedRule;
     private static int s_savedProgress;
 
-    private static bool Active => Enabled && !Internal && TimeBank.TimeBank.IsProcessing;
+    /// <summary>Set while the phone app starts an action directly ("Start now"): not captured, but still an override.</summary>
+    internal static bool Bypass { get; set; }
+
+    private static bool Active => Enabled && !Internal && !Bypass && TimeBank.TimeBank.IsProcessing;
 
     /// <summary>Queue mode is intercepting player clicks right now (its instant start/restore isn't an override).</summary>
     internal static bool IsActive => Active;

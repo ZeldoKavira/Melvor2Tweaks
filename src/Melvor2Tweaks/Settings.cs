@@ -42,6 +42,20 @@ public sealed class Settings
     [Setting("Time Bank", "Share of offline time banked", "The rest runs as normal offline progress (not multiplied).", Min = 0, Max = 1, Step = 0.05, Percent = true)]
     public double BankRatio { get; set; } = 1.0;
 
+    // ---- Phone access ------------------------------------------------------------------------------
+    [Setting("Phone access", "Phone access", "Serve a phone-friendly control page for this game on this PC (localhost only). Reach it from your " +
+             "phone through a Cloudflare Tunnel, and log in with the link from the Actions menu's Phone button.")]
+    public bool RemoteEnabled { get; set; } = false;
+
+    [Setting("Phone access", "Port", "Local port of the phone page (the tunnel points at http://localhost:<port>).", Min = 1024, Max = 65535, Step = 1)]
+    public int RemotePort { get; set; } = 8780;
+
+    /// <summary>Public address of the tunnel (e.g. https://melvor.example.com), for the copied login link.</summary>
+    public string? RemotePublicUrl { get; set; }
+
+    /// <summary>Secret in the login link; changing it logs every phone out.</summary>
+    public string? RemoteKey { get; set; }
+
     // ---- Speed -------------------------------------------------------------------------------------
     /// <summary>Current speed; changed from the top bar, not the settings page.</summary>
     public double Speed { get; set; } = 1;
@@ -180,5 +194,6 @@ public sealed class Settings
             Plugin.Log("Could not save settings: " + e.Message);
         }
         Changed?.Invoke();
+        Remote.RemoteServer.Sync();
     }
 }

@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#17140f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.webmanifest">
+<title>Melvor Idle 2</title>
+<style>
+:root{
+  --bg:#17140f;--panel:#221d16;--panel2:#2b241b;--line:#3d3324;--gold:#f5c84c;--text:#ece2c9;--muted:#a99d84;
+  --green:#7fd47f;--red:#e46a5a;--radius:12px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{padding:env(safe-area-inset-top) 0 calc(64px + env(safe-area-inset-bottom))}
+header{position:sticky;top:0;z-index:5;background:rgba(23,20,15,.96);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);
+  padding:10px 16px;display:flex;align-items:center;gap:10px}
+header h1{font-size:17px;margin:0;color:var(--gold);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{font-size:12px;padding:3px 8px;border-radius:99px;background:var(--panel2);color:var(--muted);white-space:nowrap}
+main{padding:12px 16px;max-width:720px;margin:0 auto}
+nav{position:fixed;bottom:0;left:0;right:0;z-index:6;display:flex;background:#1d1912;border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;background:none;border:0;color:var(--muted);padding:9px 0 8px;font:600 12px system-ui;display:flex;flex-direction:column;align-items:center;gap:3px}
+nav button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+nav button.on{color:var(--gold)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px}
+.card h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 10px;font-weight:700}
+.row{display:flex;align-items:center;gap:10px}
+.grow{flex:1;min-width:0}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.gold{color:var(--gold)}
+.green{color:var(--green)}
+.red{color:var(--red)}
+.ellip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+img.ic,span.ic{width:36px;height:36px;object-fit:contain;flex:none;display:inline-block}
+img.ic.sm{width:26px;height:26px}
+.big{font-size:18px;font-weight:700}
+.bar{height:6px;background:#3a3123;border-radius:99px;overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,#c99a2e,var(--gold))}
+button.btn{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font:600 14px system-ui;min-height:42px}
+button.btn:active{transform:scale(.98)}
+button.btn.primary{background:#3c6b2f;border-color:#4f8a3e;color:#fff}
+button.btn.danger{background:#6b2f2a;border-color:#8a3e36;color:#fff}
+button.btn.gold{background:#5a4513;border-color:#8a6a1e;color:var(--gold)}
+button.btn.sm{padding:6px 10px;min-height:34px;font-size:13px}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.chip{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:99px;padding:7px 13px;font:600 13px system-ui}
+.chip.on{background:#5a4513;border-color:#8a6a1e;color:var(--gold)}
+.list .item{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.list .item:first-child{border-top:0}
+.list button.item{width:100%;text-align:left;background:none;border-left:0;border-right:0;border-bottom:0;color:var(--text);font:inherit;margin:0;border-radius:0}
+.locked{opacity:.5}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:10px;display:flex;gap:8px;align-items:center;text-align:left;color:var(--text);font:inherit}
+.tile.active{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+.switch{display:flex;align-items:center;justify-content:space-between;padding:8px 0;gap:10px}
+.switch input{width:44px;height:26px;accent-color:var(--gold);flex:none}
+input[type=number],input[type=text],input[type=search],select{background:#120f0b;border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px;font:15px system-ui;min-height:42px;width:100%}
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:20;display:none}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;background:var(--panel);border-top:1px solid var(--line);border-radius:18px 18px 0 0;
+  padding:16px 16px calc(16px + env(safe-area-inset-bottom));max-height:85vh;overflow:auto;transform:translateY(105%);transition:transform .22s ease;max-width:720px;margin:0 auto}
+.sheet{pointer-events:none}
+.sheet.open{transform:none;pointer-events:auto}
+.sheet .handle{width:40px;height:4px;border-radius:9px;background:#4a3f2e;margin:-4px auto 12px}
+.opt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--panel2);border:1px solid var(--line);border-radius:10px;
+  padding:11px 12px;margin-bottom:8px;color:var(--text);font:inherit}
+.opt b{color:var(--gold);white-space:nowrap}
+.seg{display:flex;background:#120f0b;border:1px solid var(--line);border-radius:10px;padding:3px;margin-bottom:12px}
+.seg button{flex:1;border:0;background:none;color:var(--muted);padding:8px;border-radius:8px;font:600 14px system-ui}
+.seg button.on{background:var(--panel2);color:var(--gold)}
+#toast{position:fixed;left:16px;right:16px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:30;background:#2f2a1f;border:1px solid #6b5a2e;color:var(--text);
+  padding:12px 14px;border-radius:12px;display:none;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:688px;margin:0 auto}
+#toast.err{border-color:#8a3e36}
+.back{background:none;border:0;color:var(--gold);font:600 15px system-ui;padding:6px 0;margin-bottom:6px}
+.empty{color:var(--muted);text-align:center;padding:24px 8px}
+.qrow .num{width:18px;color:var(--muted);text-align:right;flex:none;font-size:13px}
+.qrow{gap:8px!important}
+.qrow .label{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:14px}
+.qrow .iconbtn{width:32px;height:32px}
+.iconbtn{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;width:36px;height:36px;display:grid;place-items:center;flex:none;padding:0}
+.iconbtn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.sticky-search{position:sticky;top:49px;background:var(--bg);padding:6px 0 10px;z-index:4}
+</style>
+</head>
+<body>
+<header><h1 id="title">Melvor Idle 2</h1><span class="pill" id="bankPill"></span><span class="pill" id="speedPill"></span></header>
+<main id="view"></main>
+<nav id="nav"></nav>
+<div class="sheet-bg" id="sheetBg"></div>
+<div class="sheet" id="sheet"></div>
+<div id="toast"></div>
+<script>
+"use strict";
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = n => Number(n ?? 0).toLocaleString();
+const short = n => { n = Number(n || 0); const a = Math.abs(n);
+  return a >= 1e9 ? (n/1e9).toFixed(2)+"B" : a >= 1e6 ? (n/1e6).toFixed(2)+"M" : a >= 1e4 ? (n/1e3).toFixed(1)+"K" : fmt(n); };
+const icon = id => id ? `<img class="ic" loading="lazy" src="/icon/${esc(id)}.png" alt="">` : `<span class="ic"></span>`;
+const iconSm = id => id ? `<img class="ic sm" loading="lazy" src="/icon/${esc(id)}.png" alt="">` : "";
+const svg = p => `<svg viewBox="0 0 24 24">${p}</svg>`;
+
+const TABS = [
+  ["now", "Now", svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>')],
+  ["queue", "Queue", svg('<path d="M4 6h16M4 12h16M4 18h10"/>')],
+  ["skills", "Skills", svg('<path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z"/>')],
+  ["bank", "Bank", svg('<path d="M3 9l9-5 9 5M5 10v8M19 10v8M9 10v8M15 10v8M3 20h18"/>')],
+  ["log", "Log", svg('<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h6"/>')],
+];
+
+function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } }
+
+let tab = store("tab") || "now";
+let state = null, skill = null, bank = null, droplog = null;
+let bankQuery = "", bankSort = "value";
+let sheetOpen = false, sheetMode = store("mode") || "queue", sheetTarget = null;
+
+async function api(path, body) {
+  const res = await fetch("/api/" + path, body === undefined ? {} :
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  let data = null;
+  try { data = await res.json(); } catch {}
+  if (res.status === 401) { showLogin(); throw new Error("not logged in"); }
+  if (!res.ok) throw new Error(data?.error || ("Error " + res.status));
+  return data;
+}
+
+async function act(path, body) {
+  try {
+    const r = await api(path, body);
+    if (r?.message) toast(r.message);
+    await load();
+    return r;
+  } catch (e) { if (e.message !== "not logged in") toast(e.message, true); }
+}
+
+let toastTimer;
+function toast(msg, err) {
+  const t = $("#toast");
+  t.textContent = msg; t.className = err ? "err" : ""; t.style.display = "block";
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.style.display = "none", 3500);
+}
+
+function showLogin() {
+  $("#view").innerHTML = `<div class="card"><h2>Not logged in</h2><p>Open the phone link from the game once: Actions menu → Phone → Copy link.</p></div>`;
+}
+
+// ---- nav ---------------------------------------------------------------------------------------
+function drawNav() {
+  $("#nav").innerHTML = TABS.map(([id, label, ic]) => `<button data-tab="${id}" class="${tab === id ? "on" : ""}">${ic}${label}</button>`).join("");
+}
+$("#nav").addEventListener("click", e => {
+  const b = e.target.closest("button[data-tab]"); if (!b) return;
+  if (tab === b.dataset.tab && tab === "skills") skill = null;
+  tab = b.dataset.tab; store("tab", tab); drawNav(); render(); load(); window.scrollTo(0, 0);
+});
+
+// ---- data --------------------------------------------------------------------------------------
+async function load() {
+  try {
+    state = await api("state");
+    drawHeader();
+    if (tab === "bank") bank = await api("bank");
+    if (tab === "log") droplog = await api("droplog");
+    if (tab === "skills" && skill) skill = await api("skill?id=" + encodeURIComponent(skill.id));
+    if (!sheetOpen) render();
+  } catch (e) {
+    if (e.message !== "not logged in")
+      $("#view").innerHTML = `<div class="card"><h2>Can't reach the game</h2><p class="muted">${esc(e.message)}</p></div>`;
+  }
+}
+
+function drawHeader() {
+  $("#bankPill").textContent = "⏳ " + (state.timeBank?.text ?? "");
+  $("#speedPill").textContent = state.speed + "x";
+  $("#title").textContent = state.running ? state.running.label : "Idle";
+}
+
+function render() {
+  if (!state) return;
+  const v = $("#view");
+  if (tab === "now") v.innerHTML = renderNow();
+  else if (tab === "queue") v.innerHTML = renderQueue();
+  else if (tab === "skills") v.innerHTML = skill ? renderSkill() : renderSkills();
+  else if (tab === "bank") v.innerHTML = renderBank();
+  else if (tab === "log") v.innerHTML = renderLog();
+}
+
+// ---- now ---------------------------------------------------------------------------------------
+function renderNow() {
+  const r = state.running, q = state.queue;
+  let h = `<div class="card"><h2>Current action</h2>`;
+  if (r) {
+    h += `<div class="row">${icon(r.icon)}<div class="grow"><div class="big ellip">${esc(r.label)}</div>
+      <div class="small green">${esc(r.rule)}${r.eta && r.eta !== "no end" ? " · " + esc(r.eta) + " left" : ""}</div></div></div>`;
+    if (r.level) h += `<div class="small muted" style="margin-top:8px">Level ${r.level.level} · ${fmt(r.level.xp)} / ${fmt(r.level.next)} XP</div>
+      <div class="bar"><i style="width:${(r.level.pct * 100).toFixed(1)}%"></i></div>`;
+    h += `<div class="btns" style="margin-top:12px"><button class="btn danger" data-do="stop">Stop</button>`;
+    if (q.entries.length) h += `<button class="btn gold" data-do="bump">Start next now</button>`;
+    h += `</div>`;
+  } else {
+    h += `<div class="muted">Nothing is running.</div>`;
+    if (q.entries.length) h += `<div class="btns" style="margin-top:12px"><button class="btn primary" data-do="qstart">Start the queue (${q.entries.length})</button></div>`;
+  }
+  h += `</div>`;
+
+  if (q.entries.length) {
+    h += `<div class="card"><h2>Up next</h2><div class="list">` + q.entries.slice(0, 3).map(e =>
+      `<div class="item">${iconSm(e.icon)}<div class="grow ellip">${esc(e.label)}</div><span class="small muted">${esc(e.eta)}</span></div>`).join("") +
+      `</div>${q.entries.length > 3 ? `<div class="small muted" style="margin-top:6px">+${q.entries.length - 3} more${q.total ? " · whole queue " + esc(q.total) : ""}</div>` : ""}</div>`;
+  }
+
+  h += `<div class="card"><h2>Time bank</h2><div class="big">${esc(state.timeBank.text)}</div>
+    <div class="small muted">At ${state.speed}x, each banked hour runs ${state.speed} hours of game time</div>
+    <div class="btns" style="margin-top:12px">${[15, 60, 240].map(m => `<button class="btn" data-skip="${m}">${m < 60 ? m + "m" : m / 60 + "h"}</button>`).join("")}
+    <button class="btn" data-skip="all">All</button></div></div>`;
+
+  h += `<div class="card"><h2>Speed</h2><div class="btns">${(state.speedPresets || [1, 2, 3, 5, 10]).map(s =>
+    `<button class="chip ${s === state.speed ? "on" : ""}" data-speed="${s}">${s}x</button>`).join("")}</div></div>`;
+
+  h += `<div class="card"><h2>Wallet & bank</h2><div class="btns">` +
+    (state.currencies || []).map(c => `<span class="row small">${iconSm(c.icon)}${short(c.quantity)} ${esc(c.name)}</span>`).join("") +
+    (state.bank ? `<span class="row small">Bank ${state.bank.used} / ${state.bank.max} slots</span>` : "") + `</div></div>`;
+  return h;
+}
+
+// ---- queue -------------------------------------------------------------------------------------
+function renderQueue() {
+  const q = state.queue;
+  let h = `<div class="card"><h2>Queue</h2>
+    <label class="switch"><span>Run queue</span><input type="checkbox" data-qtoggle="enabled" ${q.enabled ? "checked" : ""}></label>
+    <label class="switch"><span>Loop</span><input type="checkbox" data-qtoggle="loop" ${q.loop ? "checked" : ""}></label>
+    <label class="switch"><span>Queue mode <span class="small muted">(clicks in the game queue instead)</span></span><input type="checkbox" data-qtoggle="mode" ${q.modeOn ? "checked" : ""}></label>
+    ${q.total ? `<div class="small green">Whole queue: ${esc(q.total)}</div>` : ""}</div>`;
+  h += `<div class="card"><h2>Entries (${q.entries.length})</h2>`;
+  if (!q.entries.length) h += `<div class="empty">The queue is empty. Add actions from Skills.</div>`;
+  else h += `<div class="list">` + q.entries.map((e, i) => `<div class="item qrow">
+      <span class="num">${i + 1}</span>${iconSm(e.icon)}<div class="grow"><div class="label">${esc(e.label)}</div>${e.eta ? `<div class="small muted">${esc(e.eta)}</div>` : ""}</div>
+      ${i === 0 ? `<button class="iconbtn" title="Start now" data-q="bump">${svg('<path d="M8 5l10 7-10 7z"/>')}</button>`
+               : `<button class="iconbtn" title="Up" data-q="up" data-i="${i}">${svg('<path d="M6 15l6-6 6 6"/>')}</button>`}
+      ${i < q.entries.length - 1 ? `<button class="iconbtn" title="Down" data-q="down" data-i="${i}">${svg('<path d="M6 9l6 6 6-6"/>')}</button>` : `<span style="width:36px;flex:none"></span>`}
+      <button class="iconbtn" title="Remove" data-q="remove" data-i="${i}">${svg('<path d="M6 6l12 12M18 6L6 18"/>')}</button></div>`).join("") + `</div>`;
+  h += `<div class="btns" style="margin-top:12px">${!state.running && q.entries.length ? `<button class="btn primary" data-do="qstart">Start</button>` : ""}
+    ${q.entries.length ? `<button class="btn danger" data-do="qclear">Clear</button>` : ""}</div></div>`;
+  h += `<div class="card"><h2>Saved queues</h2>
+    <div class="row"><select id="preset" class="grow">${(q.presets || []).map(p => `<option>${esc(p)}</option>`).join("") || "<option value=''>None saved</option>"}</select>
+      <button class="btn sm" data-do="pload">Load</button><button class="btn sm" data-do="pdel">Delete</button></div>
+    <div class="row" style="margin-top:8px"><input type="text" id="pname" placeholder="Name this queue" class="grow"><button class="btn sm" data-do="psave">Save</button></div></div>`;
+  return h;
+}
+
+// ---- skills ------------------------------------------------------------------------------------
+function renderSkills() {
+  return `<div class="grid">` + state.skills.filter(s => s.startable).map(s => `<button class="tile ${s.active ? "active" : ""}" data-skill="${esc(s.id)}">
+    ${icon(s.icon)}<div class="grow"><div class="ellip">${esc(s.name)}</div>${s.xp ? `<div class="small muted">Lv ${s.xp.level}${s.xp.cap ? " / " + s.xp.cap : ""}</div>
+    <div class="bar"><i style="width:${(s.xp.pct * 100).toFixed(1)}%"></i></div>` : `<div class="small muted">Areas & dungeons</div>`}</div></button>`).join("") + `</div>`;
+}
+
+function renderSkill() {
+  const s = skill;
+  let h = `<button class="back" data-do="skills">‹ Skills</button>
+    <div class="card"><div class="row">${icon(s.icon)}<div class="grow"><div class="big">${esc(s.name)}</div>
+    ${s.level ? `<div class="small muted">Level ${s.level.level} · ${fmt(s.level.xp)} / ${fmt(s.level.next)} XP</div><div class="bar"><i style="width:${(s.level.pct * 100).toFixed(1)}%"></i></div>` : ""}</div></div></div>`;
+  if (!s.groups.length) h += `<div class="empty">Nothing to start in this skill from here.</div>`;
+  for (const g of s.groups) {
+    h += `<div class="card"><h2>${esc(g.name)}</h2><div class="list">` + g.targets.map(t =>
+      `<button class="item ${t.unlocked ? "" : "locked"}" data-target="${esc(JSON.stringify({ ids: t.ids, name: t.name, unlocked: t.unlocked, needs: t.needs }))}">
+        ${icon(t.icon)}<div class="grow"><div class="ellip">${esc(t.name)}</div>
+        ${t.unlocked ? (t.detail ? `<div class="small muted">${esc(t.detail)}</div>` : "") : `<div class="small red">Locked: ${esc(t.needs || "not available yet")}</div>`}</div></button>`).join("") + `</div></div>`;
+  }
+  return h;
+}
+
+// ---- stop condition sheet ----------------------------------------------------------------------
+async function openTarget(t) {
+  if (!t.unlocked) { toast("Locked: " + (t.needs || "not available yet"), true); return; }
+  sheetTarget = { entity: skill.id, ids: t.ids, label: `${skill.name}: ${t.name}` };
+  let o;
+  try { o = await api(`options?entity=${encodeURIComponent(skill.id)}&ids=${encodeURIComponent(t.ids.join(","))}&label=${encodeURIComponent(sheetTarget.label)}`); }
+  catch (e) { toast(e.message, true); return; }
+  let h = `<div class="handle"></div><div class="big gold" style="margin-bottom:4px">${esc(t.name)}</div>
+    <div class="small muted" style="margin-bottom:12px">When should it stop?</div>
+    <div class="seg"><button data-mode="queue" class="${sheetMode === "queue" ? "on" : ""}">Add to queue</button><button data-mode="start" class="${sheetMode === "start" ? "on" : ""}">Start now</button></div>
+    <button class="opt" data-pick="None"><b>Until it stops</b><span class="small muted grow">${esc(o.stopsNote)}</span></button>`;
+  for (const m of o.milestones || [])
+    h += `<button class="opt" data-pick="Level" data-value="${m.level}"><b>Level ${m.level}</b><span class="small muted grow">${esc(m.reason)}</span></button>`;
+  if (o.level != null && o.level < o.cap)
+    h += `<div class="opt"><b>Level</b><input type="number" id="lvl" min="${o.level + 1}" max="${o.cap}" value="${o.nextMilestone}" style="width:90px">
+      <span class="small muted grow">now ${o.level}</span><button class="btn sm gold" data-pick="Level" data-input="lvl">Go</button></div>`;
+  if (o.items)
+    h += `<div class="opt"><b>Items</b><input type="number" id="items" min="1" value="${store("items") || 100}" style="width:110px">
+      <span class="grow"></span><button class="btn sm gold" data-pick="Items" data-input="items">Go</button></div>`;
+  if (o.nodes)
+    h += `<button class="opt" data-pick="Nodes"><b>All nodes</b><span class="small muted grow">${esc(o.nodes.ready ? "every node can already be unlocked" : o.nodes.progress)}${o.nodes.eta && !o.nodes.ready ? " (" + esc(o.nodes.eta) + ")" : ""}</span></button>`;
+  h += `<button class="btn" style="width:100%;margin-top:4px" data-do="close">Cancel</button>`;
+  openSheet(h);
+}
+
+function openSheet(html) {
+  $("#sheet").innerHTML = html; sheetOpen = true;
+  $("#sheetBg").style.display = "block"; requestAnimationFrame(() => $("#sheet").classList.add("open"));
+}
+function closeSheet() {
+  sheetOpen = false; $("#sheet").classList.remove("open"); $("#sheetBg").style.display = "none"; render();
+}
+$("#sheetBg").addEventListener("click", closeSheet);
+
+$("#sheet").addEventListener("click", async e => {
+  const mode = e.target.closest("[data-mode]");
+  if (mode) {
+    sheetMode = mode.dataset.mode; store("mode", sheetMode);
+    $("#sheet").querySelectorAll("[data-mode]").forEach(b => b.classList.toggle("on", b === mode));
+    return;
+  }
+  const pick = e.target.closest("[data-pick]");
+  if (pick && sheetTarget) {
+    let value = Number(pick.dataset.value || 0);
+    if (pick.dataset.input) { value = Number($("#" + pick.dataset.input).value); if (pick.dataset.input === "items") store("items", value); }
+    const body = { ...sheetTarget, stop: pick.dataset.pick, value, mode: sheetMode };
+    closeSheet();
+    await act("action", body);
+    return;
+  }
+  const d = e.target.closest("[data-do]");
+  if (!d) return;
+  if (d.dataset.do === "close") closeSheet();
+  if (d.dataset.do === "sell" || d.dataset.do === "sellall") {
+    const it = JSON.parse(d.dataset.item);
+    const qty = d.dataset.do === "sellall" ? it.qty : Number($("#sellqty").value);
+    closeSheet();
+    await act("sell", { id: it.id, qty });
+  }
+  if (d.dataset.do === "skipgo") { const m = Number(d.dataset.minutes); closeSheet(); await act("skip", { minutes: m }); }
+});
+
+// ---- bank --------------------------------------------------------------------------------------
+function renderBank() {
+  if (!bank) return `<div class="empty">Loading…</div>`;
+  const items = bank.items.filter(i => !bankQuery || i.name.toLowerCase().includes(bankQuery.toLowerCase()));
+  items.sort(bankSort === "value" ? (a, b) => b.value - a.value : bankSort === "qty" ? (a, b) => b.qty - a.qty : (a, b) => a.name.localeCompare(b.name));
+  const total = bank.items.reduce((s, i) => s + i.value, 0);
+  return `<div class="sticky-search"><div class="row"><input type="search" id="bq" placeholder="Search ${bank.items.length} items" value="${esc(bankQuery)}" class="grow">
+      <select id="bs" style="width:110px"><option value="value" ${bankSort === "value" ? "selected" : ""}>Value</option>
+      <option value="qty" ${bankSort === "qty" ? "selected" : ""}>Amount</option><option value="name" ${bankSort === "name" ? "selected" : ""}>Name</option></select></div>
+      <div class="small muted" style="margin-top:6px">${bank.used} / ${bank.max} slots · worth ${short(total)}</div></div>
+    <div class="card"><div class="list">` + (items.map(i => `<button class="item" data-item="${esc(JSON.stringify(i))}">
+      ${icon(i.icon)}<div class="grow"><div class="ellip">${i.locked ? "🔒 " : ""}${esc(i.name)}</div><div class="small muted">${i.rule ? esc(i.rule) + " · " : ""}${short(i.each)} each</div></div>
+      <div style="text-align:right"><div>${fmt(i.qty)}</div><div class="small gold">${short(i.value)}</div></div></button>`).join("") || `<div class="empty">No items match.</div>`) + `</div></div>`;
+}
+
+function openItem(i) {
+  const data = esc(JSON.stringify(i));
+  openSheet(`<div class="handle"></div><div class="row" style="margin-bottom:12px">${icon(i.icon)}<div class="grow"><div class="big">${esc(i.name)}</div>
+    <div class="small muted">${fmt(i.qty)} in bank · ${short(i.each)} each · ${short(i.value)} total</div></div></div>
+    ${i.locked ? `<div class="small red" style="margin-bottom:10px">Locked in the bank: unlock it in the game to sell.</div>` : `
+    <div class="row" style="margin-bottom:10px"><input type="number" id="sellqty" min="1" max="${i.qty}" value="${Math.max(1, i.qty - 1)}" class="grow">
+      <button class="btn gold" data-do="sell" data-item="${data}">Sell</button></div>
+    <button class="btn danger" style="width:100%;margin-bottom:8px" data-do="sellall" data-item="${data}">Sell all ${fmt(i.qty)} for ${short(i.value)}</button>`}
+    <button class="btn" style="width:100%" data-do="close">Close</button>`);
+}
+
+// ---- drop log ----------------------------------------------------------------------------------
+function renderLog() {
+  if (!droplog) return `<div class="empty">Loading…</div>`;
+  if (!droplog.length) return `<div class="empty">Nothing logged yet.</div>`;
+  return droplog.map(l => `<div class="card"><div class="row">${iconSm(l.icon)}<div class="grow"><div class="ellip ${l.current ? "gold" : ""}">${esc(l.label)}</div>
+    <div class="small muted">${fmt(l.actions)} actions · ${esc(l.time)} · ${fmt(l.xp)} XP</div></div></div>
+    ${l.items.length ? `<div class="btns" style="margin-top:8px">` + l.items.slice(0, 12).map(i => `<span class="row small" title="${esc(i.name)}">${iconSm(i.icon)}${short(i.qty)}</span>`).join("") + `</div>` : ""}</div>`).join("");
+}
+
+// ---- events ------------------------------------------------------------------------------------
+$("#view").addEventListener("click", async e => {
+  const d = e.target.closest("[data-do]");
+  if (d) {
+    const x = d.dataset.do;
+    if (x === "stop") return act("stop", {});
+    if (x === "bump") return act("queue", { op: "bump" });
+    if (x === "qstart") return act("queue", { op: "start" });
+    if (x === "qclear") { if (confirm("Clear the whole queue?")) act("queue", { op: "clear" }); return; }
+    if (x === "skills") { skill = null; render(); window.scrollTo(0, 0); return; }
+    if (x === "pload") { const n = $("#preset").value; if (n && confirm(`Replace the queue with "${n}"?`)) act("queue", { op: "load", name: n }); return; }
+    if (x === "pdel") { const n = $("#preset").value; if (n && confirm(`Delete "${n}"?`)) act("queue", { op: "delete", name: n }); return; }
+    if (x === "psave") { const n = $("#pname").value.trim() || $("#preset").value; if (n) act("queue", { op: "save", name: n }); return; }
+  }
+  const q = e.target.closest("[data-q]");
+  if (q) {
+    const i = Number(q.dataset.i);
+    if (q.dataset.q === "bump") return act("queue", { op: "bump" });
+    if (q.dataset.q === "up") return act("queue", { op: "move", i, to: i - 1 });
+    if (q.dataset.q === "down") return act("queue", { op: "move", i, to: i + 1 });
+    if (q.dataset.q === "remove") return act("queue", { op: "remove", i });
+  }
+  const sk = e.target.closest("[data-skill]");
+  if (sk) {
+    try { skill = await api("skill?id=" + encodeURIComponent(sk.dataset.skill)); render(); window.scrollTo(0, 0); }
+    catch (err) { toast(err.message, true); }
+    return;
+  }
+  const t = e.target.closest("[data-target]");
+  if (t) return openTarget(JSON.parse(t.dataset.target));
+  const it = e.target.closest("[data-item]");
+  if (it) return openItem(JSON.parse(it.dataset.item));
+  const sp = e.target.closest("[data-speed]");
+  if (sp) return act("speed", { value: Number(sp.dataset.speed) });
+  const sk2 = e.target.closest("[data-skip]");
+  if (sk2) {
+    const minutes = sk2.dataset.skip === "all" ? Math.floor(state.timeBank.ms / 60000) : Number(sk2.dataset.skip);
+    if (minutes <= 0) return toast("No banked time", true);
+    const len = minutes >= 60 ? (minutes / 60).toFixed(1).replace(".0", "") + "h" : minutes + "m";
+    openSheet(`<div class="handle"></div><div class="big gold">Skip ${len}?</div>
+      <p class="muted">Uses ${len} of banked time at ${state.speed}x: about ${(minutes * state.speed / 60).toFixed(1)}h of game time. The game catches up in the background.</p>
+      <button class="btn primary" style="width:100%;margin-bottom:8px" data-do="skipgo" data-minutes="${minutes}">Skip</button>
+      <button class="btn" style="width:100%" data-do="close">Cancel</button>`);
+  }
+});
+
+$("#view").addEventListener("change", e => {
+  const t = e.target;
+  if (t.dataset.qtoggle) act("queue", { op: t.dataset.qtoggle, on: t.checked });
+  if (t.id === "bs") { bankSort = t.value; render(); }
+});
+$("#view").addEventListener("input", e => {
+  if (e.target.id !== "bq") return;
+  bankQuery = e.target.value;
+  const pos = e.target.selectionStart;
+  render();
+  const el = $("#bq"); el.focus(); el.setSelectionRange(pos, pos);
+});
+
+// ---- polling -----------------------------------------------------------------------------------
+drawNav();
+load();
+setInterval(() => {
+  if (document.hidden || sheetOpen) return;
+  if (tab === "now" || tab === "queue" || (tab === "skills" && !skill)) load();
+}, 2500);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+</script>
+</body>
+</html>

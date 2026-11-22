@@ -10,7 +10,7 @@ namespace Melvor2Tweaks;
 /// </summary>
 public static class Plugin
 {
-    public const string Version = "0.13.0";
+    public const string Version = "0.14.0";
     public const string HarmonyId = "net.zeldo.melvor2tweaks";
 
     private static HarmonyLib.Harmony? s_harmony;
@@ -38,10 +38,12 @@ public static class Plugin
         try { Features.ItemRules.AttachToExisting(); } catch (Exception e) { Log("Item rules: " + e); }
         try { Features.QueueFromCost.AttachToExisting(); } catch (Exception e) { Log("Queue from cost: " + e); }
         try { Updater.Start(); } catch (Exception e) { Log("Updater: " + e); }
+        try { Remote.RemoteServer.Live = true; Remote.RemoteServer.Start(); } catch (Exception e) { Log("Phone access: " + e); }
     }
 
     public static void ModUnload()
     {
+        try { Remote.RemoteServer.Live = false; Remote.RemoteServer.Stop(); } catch (Exception e) { Log("Phone access teardown: " + e.Message); }
         try { Updater.Stop(); } catch (Exception e) { Log("Updater teardown: " + e.Message); }
         try { UI.TopBar.Detach(); } catch (Exception e) { Log("Top bar teardown: " + e.Message); }
         try { UI.ActionsMenu.Detach(); } catch (Exception e) { Log("Actions menu teardown: " + e.Message); }
