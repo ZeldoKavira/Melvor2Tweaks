@@ -50,6 +50,13 @@ public sealed class Settings
     [Setting("Phone access", "Port", "Local port of the phone page (the tunnel points at http://localhost:<port>).", Min = 1024, Max = 65535, Step = 1)]
     public int RemotePort { get; set; } = 8780;
 
+    [Setting("Phone access", "Let your server connect", "Also listen on the network, but only accept the addresses below (your reverse " +
+             "proxy, e.g. Traefik on a home server). Off: only this PC can connect. Windows asks once whether to allow it.")]
+    public bool RemoteLan { get; set; } = false;
+
+    /// <summary>Addresses allowed to connect when RemoteLan is on (comma separated), e.g. the reverse proxy host.</summary>
+    public string RemoteAllowedClients { get; set; } = "";
+
     /// <summary>Public address of the tunnel (e.g. https://melvor.example.com), for the copied login link.</summary>
     public string? RemotePublicUrl { get; set; }
 

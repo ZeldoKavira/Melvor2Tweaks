@@ -123,7 +123,8 @@ internal static class RemoteServer
     {
         if (!Live) return;
         bool want = Settings.Current.RemoteEnabled;
-        if (want != Running || (want && Port != Settings.Current.RemotePort)) Start();
+        if (want != Running || (want && (Port != Settings.Current.RemotePort || s_lan != Settings.Current.RemoteLan))) Start();
+        s_allowed = ParseAllowed();
     }
 
     internal static void Start()
@@ -133,15 +134,19 @@ internal static class RemoteServer
         int port = Settings.Current.RemotePort;
         try
         {
-            var listener = new TcpListener(IPAddress.Loopback, port);
+            bool lan = Settings.Current.RemoteLan;
+            var listener = new TcpListener(lan ? IPAddress.Any : IPAddress.Loopback, port);
             listener.Start();
             s_listener = listener;
+            s_lan = lan;
+            s_allowed = ParseAllowed();
             Port = port;
             s_cts = new CancellationTokenSource();
             var token = s_cts.Token;
             _ = Task.Run(() => AcceptLoop(listener, token));
             LastError = "";
-            Plugin.Log($"Phone access: listening on http://localhost:{port}/");
+            Plugin.Log($"Phone access: listening on http://localhost:{port}/" +
+                       (lan ? $" and the network (accepting {(s_allowed.Count == 0 ? "no other address yet" : string.Join(", ", s_allowed))})" : ""));
         }
         catch (Exception e)
         {
@@ -170,10 +175,34 @@ internal static class RemoteServer
         }
     }
 
+    private static bool s_lan;
+    private static HashSet<IPAddress> s_allowed = new();
+
+    private static HashSet<IPAddress> ParseAllowed()
+    {
+        var set = new HashSet<IPAddress>();
+        foreach (var part in (Settings.Current.RemoteAllowedClients ?? "").Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries))
+            if (IPAddress.TryParse(part, out var ip)) set.Add(ip.IsIPv4MappedToIPv6 ? ip.MapToIPv4() : ip);
+        return set;
+    }
+
+    /// <summary>This PC always; other machines only when listed (the reverse proxy).</summary>
+    private static bool AllowedClient(TcpClient client)
+    {
+        if (client.Client.RemoteEndPoint is not IPEndPoint ep) return false;
+        var ip = ep.Address.IsIPv4MappedToIPv6 ? ep.Address.MapToIPv4() : ep.Address;
+        return IPAddress.IsLoopback(ip) || s_allowed.Contains(ip);
+    }
+
     private static async Task Serve(TcpClient client, CancellationToken token)
     {
         using (client)
         {
+            if (!AllowedClient(client))
+            {
+                Plugin.Log($"Phone access: refused a connection from {client.Client.RemoteEndPoint}");
+                return;
+            }
             try
             {
                 client.ReceiveTimeout = 10_000;
@@ -278,7 +307,7 @@ internal static class RemoteServer
                 return Response.Text(Page("That link is out of date. Copy a new one from the game (Settings → Melvor2Tweaks → Phone access)."), "text/html; charset=utf-8", 401);
             var redirect = new Response { Status = 302, ContentType = "text/plain" };
             redirect.ExtraHeaders.Add($"Set-Cookie: {CookieName}={Key}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Strict" +
-                                      (r.Headers.TryGetValue("X-Forwarded-Proto", out var proto) && proto == "https" ? "; Secure" : ""));
+                                      (BehindHttps(r) ? "; Secure" : ""));
             redirect.ExtraHeaders.Add("Location: /");
             return redirect;
         }
@@ -295,6 +324,11 @@ internal static class RemoteServer
         if (r.Path.StartsWith("/api/")) return await RemoteApi.Handle(r);
         return Response.Error("Not found", 404);
     }
+
+    /// <summary>Reached through the proxy (https outside): anything but a localhost address.</summary>
+    private static bool BehindHttps(Request r) =>
+        (r.Headers.TryGetValue("X-Forwarded-Proto", out var proto) && proto == "https") ||
+        (r.Headers.TryGetValue("Host", out var host) && !host.StartsWith("localhost") && !host.StartsWith("127.0.0.1"));
 
     private static string Page(string message) =>
         "<!doctype html><meta name=viewport content='width=device-width,initial-scale=1'><title>Melvor Idle 2</title>" +

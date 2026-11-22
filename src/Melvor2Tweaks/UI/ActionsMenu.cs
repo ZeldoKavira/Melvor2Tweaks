@@ -124,7 +124,7 @@ internal static class ActionsMenu
         s_button = null; s_buttonLabel = null; s_popup = null; s_panel = null; s_current = null; s_rule = null;
         s_kind = null; s_value = null; s_enabled = null; s_start = null; s_loop = null; s_total = null; s_presetName = null; s_presets = null;
         s_presetSignature = null; s_queueBody = null; s_logBody = null; s_logToggle = null; s_logPick = null; s_logPickSignature = null;
-        s_logText = null; s_logReset = null; s_etaLabels.Clear(); s_queueMode = null; s_list = null; s_status = null; s_listSignature = null; s_phoneStatus = null; s_phoneOn = null;
+        s_logText = null; s_logReset = null; s_etaLabels.Clear(); s_queueMode = null; s_list = null; s_status = null; s_listSignature = null; s_phoneStatus = null; s_phoneOn = null; s_phoneLan = null;
     }
 
     private static PanelContainer BuildPanel()
@@ -282,6 +282,7 @@ internal static class ActionsMenu
     // ---- phone access ------------------------------------------------------------------------------
     private static Label? s_phoneStatus;
     private static CheckBox? s_phoneOn;
+    private static CheckBox? s_phoneLan;
 
     /// <summary>Phone access: on/off, the tunnel's public address, copy the login link, make a new key.</summary>
     private static VBoxContainer BuildPhoneBody()
@@ -325,6 +326,26 @@ internal static class ActionsMenu
         UiKit.AddTooltip(reset, "New key", "Logs every phone out. Use it if the link got out.");
         urlRow.AddChild(reset);
         box.AddChild(urlRow);
+
+        // A reverse proxy on another machine (e.g. Traefik on a home server) connects over the network.
+        var lanRow = new HBoxContainer();
+        lanRow.AddThemeConstantOverride("separation", 6);
+        s_phoneLan = new CheckBox { Text = "Let your server connect", FocusMode = Control.FocusModeEnum.None, AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled };
+        s_phoneLan.Toggled += on => { Settings.Current.RemoteLan = on; Settings.Save(); RefreshPhone(); };
+        UiKit.AddTooltip(s_phoneLan, "Let your server connect",
+            "Also listen on the network, accepting only the addresses typed here (your reverse proxy). Windows asks once whether to allow it.");
+        lanRow.AddChild(s_phoneLan);
+        var allowed = new LineEdit
+        {
+            PlaceholderText = "Server address, e.g. 192.168.1.10",
+            Text = Settings.Current.RemoteAllowedClients ?? "",
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+        };
+        void SaveAllowed() { Settings.Current.RemoteAllowedClients = allowed.Text.Trim(); Settings.Save(); RefreshPhone(); }
+        allowed.TextSubmitted += _ => SaveAllowed();
+        allowed.FocusExited += SaveAllowed;
+        lanRow.AddChild(allowed);
+        box.AddChild(lanRow);
         box.AddChild(new HSeparator());
         return box;
     }
@@ -332,9 +353,11 @@ internal static class ActionsMenu
     private static void RefreshPhone()
     {
         if (Valid(s_phoneOn)) s_phoneOn!.SetPressedNoSignal(Settings.Current.RemoteEnabled);
+        if (Valid(s_phoneLan)) s_phoneLan!.SetPressedNoSignal(Settings.Current.RemoteLan);
         if (!Valid(s_phoneStatus)) return;
         s_phoneStatus!.Text = !Settings.Current.RemoteEnabled ? "Off"
-            : Remote.RemoteServer.Running ? $"On: http://localhost:{Remote.RemoteServer.Port}"
+            : Remote.RemoteServer.Running ? $"On: http://localhost:{Remote.RemoteServer.Port}" +
+                                            (Settings.Current.RemoteLan ? $" + network ({Settings.Current.RemoteAllowedClients})" : "")
             : $"Couldn't start: {Remote.RemoteServer.LastError}";
     }
 

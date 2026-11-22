@@ -376,6 +376,12 @@ internal static class DevCommands
                 Settings.Save();
                 Plugin.Log($"remote: {(Remote.RemoteServer.Running ? "listening on " + Remote.RemoteServer.Port : "off " + Remote.RemoteServer.LastError)}");
                 break;
+            case var rl when rl.StartsWith("remote-lan:"):
+                // remote-lan:<allowed addresses, comma separated> (empty = off)
+                Settings.Current.RemoteAllowedClients = rl.Substring("remote-lan:".Length);
+                Settings.Current.RemoteLan = Settings.Current.RemoteAllowedClients.Length > 0;
+                Settings.Save();
+                break;
             case "cost-buttons":
                 Features.QueueFromCost.LogButtons();
                 break;
