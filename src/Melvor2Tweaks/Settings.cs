@@ -98,6 +98,11 @@ public sealed class Settings
     [Setting("Skilling", "Keep going when a side drop won't fit", "Woodcutting, mining and fishing only stop on a full bank if the main product can't be stored, not a gem, nest or junk.")]
     public bool IgnoreSideDropBankFull { get; set; } = true;
 
+    [Setting("Skilling", "Toolbelt warnings", "A dot on each skill's toolbelt button (right edge of the page): red when a slot is empty " +
+             "although your bank has something for it, yellow when the bank has an item that is better for what the skill is doing. " +
+             "Open the toolbelt to see which slots and items.")]
+    public bool ToolbeltWarnings { get; set; } = true;
+
     [Setting("Skilling", "Ranching: auto-pet", "Pet animals as soon as they want it.")]
     public bool RanchingAutoPet { get; set; } = true;
 

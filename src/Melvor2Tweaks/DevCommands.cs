@@ -220,6 +220,58 @@ internal static class DevCommands
                     break;
                 }
                 break;
+            case "toolbelt-check":
+                foreach (var w in UI.NodeSearch.All<GamesByMalcs.Melvor2.GameMenus.Widgets.WidgetsView>())
+                {
+                    var eq = HarmonyLib.Traverse.Create(w.ToolbeltWidget).Property("ToolbeltEquipping")
+                        .GetValue<GamesByMalcs.Melvor2.Components.ToolbeltEquipping.ToolbeltEquippingComponent>();
+                    if (eq == null) { Plugin.Log("toolbelt-check: no toolbelt on this page"); continue; }
+                    var cur = Features.ToolbeltCheck.CurrentObjects(eq.Entity);
+                    Plugin.Log($"toolbelt-check: {eq.Entity.DisplayName.Text}, context: {string.Join(", ", cur.Select(o => (o as GamesByMalcs.Melvor2.Data.INamespacedObject)?.Id ?? o.GetType().Name))}");
+                    foreach (var i in Features.ToolbeltCheck.Check(eq).Issues) Plugin.Log($"  {i.Severity}: {Features.ToolbeltCheck.Describe(i)}");
+                }
+                break;
+            case var tc when tc.StartsWith("toolbelt-check:"):
+                // toolbelt-check:<entity id> - any skill, without opening its page.
+                {
+                    var game = TimeBank.TimeBank.Game;
+                    if (game == null || !game.Entities.TryGetObjectById(tc.Substring(15), out var ent) || ent == null
+                        || ent is not GamesByMalcs.Melvor2.Components.ToolbeltEquipping.IToolbeltEntity te) { Plugin.Log("toolbelt-check: no such toolbelt entity"); break; }
+                    var cur = Features.ToolbeltCheck.CurrentObjects(ent);
+                    Plugin.Log($"toolbelt-check: {ent.DisplayName.Text}, context: {string.Join(", ", cur.Select(o => (o as GamesByMalcs.Melvor2.Data.INamespacedObject)?.Id ?? o.GetType().Name))}");
+                    foreach (var i in Features.ToolbeltCheck.Check(te.ToolbeltEquipping).Issues) Plugin.Log($"  {i.Severity}: {Features.ToolbeltCheck.Describe(i)}");
+                }
+                break;
+            case var ts when ts.StartsWith("toolbelt-score:"):
+                // toolbelt-score:<entity id>|<item id>|<item id>... - bonus scores for that skill's current action.
+                {
+                    var parts = ts.Substring(15).Split('|');
+                    var game = TimeBank.TimeBank.Game;
+                    if (game == null || !game.Entities.TryGetObjectById(parts[0], out var ent) || ent == null) break;
+                    var cur = Features.ToolbeltCheck.CurrentObjects(ent);
+                    foreach (var id in parts.Skip(1))
+                    {
+                        if (!game.Data.TryGetObject<GamesByMalcs.Melvor2.Data.Items.Item>(id, out var it) || it == null ||
+                            !it.Capabilities.TryGet<GamesByMalcs.Melvor2.Components.Toolbelt.ToolbeltCapability>(out var cap)) { Plugin.Log("  no toolbelt item " + id); continue; }
+                        var sc = Features.ToolbeltCheck.Score(cap, cur);
+                        Plugin.Log($"  {id}: " + string.Join("; ", sc.Select(kv => $"{kv.Key}={kv.Value:0.###}")));
+                    }
+                }
+                break;
+            case "dump-widgets":
+                foreach (var w in UI.NodeSearch.All<GamesByMalcs.Melvor2.GameMenus.Widgets.WidgetsView>()) { Dump(w.ToolbeltWidgetContainer, 0, 7); Dump(w.ToolbeltWidget, 0, 5); }
+                break;
+            case var td when td.StartsWith("toolbelt-demo:"):
+                // toolbelt-demo:Empty|Upgrade|None - show a dot on the button regardless of the check (screenshots).
+                UI.ToolbeltBadges.Demo = Enum.Parse<Features.ToolbeltCheck.Severity>(td.Substring(14));
+                foreach (var w in UI.NodeSearch.All<GamesByMalcs.Melvor2.GameMenus.Widgets.WidgetsView>())
+                {
+                    UI.ToolbeltBadges.Refresh(w);
+                    bool on = UI.ToolbeltBadges.Demo != Features.ToolbeltCheck.Severity.None;
+                    HarmonyLib.Traverse.Create(w.ToolbeltWidgetContainer).Field("_isPinned").SetValue(on); // else it closes at once (mouse not over it)
+                    if (on) w.ToolbeltWidgetContainer.Open(); else w.ToolbeltWidgetContainer.Close();
+                }
+                break;
             case "close-settings":
                 foreach (var menu in FindVisibleTree<PauseMenu>()) menu.Close();
                 break;

@@ -77,6 +77,7 @@ This restores the original game files and removes the mod. Your mod settings (in
 - Flee before dying (out of food) or when out of ammo/runes; swap to other food when it runs out; don't
   pause on boss spawns; Agility and Thieving stop before an obstacle or pickpocket that would kill you.
 - Farming: Harvest All / Plant All, retry planting; grain mill top-up; bonfire relight; ranching auto-pet and repair.
+- Toolbelt warnings: a red dot on a skill's equipment button when a slot is empty but your bank has an item for it, yellow when the bank has a better item for what the skill is doing (the opened panel lists which).
 - Rare and Astrology bonuses activate by themselves; side drops don't stop gathering when the bank is full.
 - Footer shows how many crafts your materials allow; longer event log.
 
