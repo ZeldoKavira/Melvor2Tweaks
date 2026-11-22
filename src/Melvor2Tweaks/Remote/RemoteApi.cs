@@ -158,10 +158,33 @@ internal static class RemoteApi
         game.Entities.TryGetObjectById(entityId, out GameEntity? e) && e != null ? Icons.Id(e) : null;
 
     /// <summary>A thing a skill can do, as the app lists it.</summary>
-    private sealed record Target(string[] Ids, string Name, string? Icon, bool Unlocked, string? Needs, string Group, string? Detail = null)
+    private sealed class Target
     {
+        public string[] Ids = Array.Empty<string>();
+        public string Name = "";
+        public string? Icon;
+        public bool Unlocked;
+        public string? Needs;
+        public string Group = "";
         /// <summary>The skill level it needs (for ordering like the game: lowest first).</summary>
-        public int Level { get; init; }
+        public int Level;
+        /// <summary>The game's live object for it (has Stats: interval, XP).</summary>
+        public object? Active;
+        public List<Item> Products = new();
+        public string? Note;
+    }
+
+    /// <summary>Game ms per action and XP per action from a target's live Stats (every skill names them the same).</summary>
+    private static (double? ms, double? xp) StatsOf(object? active)
+    {
+        var stats = active == null ? null : Traverse.Create(active).Property("Stats").GetValue();
+        if (stats == null) return (null, null);
+        var t = Traverse.Create(stats);
+        double? ms = t.Property("Interval").Property("Value").GetValue() is double i && i > 0 ? i : null;
+        double? xp = t.Property("Experience").Property("XpToAdd").Property("Value").GetValue() is double x && x > 0 ? x : null;
+        // Trees: the interval is per hit and the XP per log; a log takes MaxHealth hits.
+        if (ms != null && t.Property("MaxHealth").Property("Value").GetValue() is int hits && hits > 1) ms *= hits;
+        return (ms, xp);
     }
 
     private static int SelfLevel(ConditionGroup? requirements, ExperienceComponent? xp)
@@ -190,31 +213,39 @@ internal static class RemoteApi
         if (!game.Entities.TryGetObjectById(id, out GameEntity? entity) || entity == null) return Response.Error("Unknown skill", 404);
         var targets = new List<Target>();
         var skillXp = entity.Components.Values.OfType<ExperienceComponent>().FirstOrDefault();
+        string? note = null;
         if (entity.Components.TryGetValue("Action", out var c) && c is ActionComponent action)
         {
             switch (action)
             {
                 case WoodcuttingActionComponent wc:
-                    foreach (var r in wc.Trees.Keys)
-                        targets.Add(new Target(new[] { r.Id }, r.DisplayName.Text, Icons.Id(r.Product.Item), r.Requirements.AreMet, Needs(r.Requirements), "Trees") { Level = SelfLevel(r.Requirements, skillXp) });
+                    foreach (var (r, tree) in wc.Trees)
+                        targets.Add(new Target { Ids = new[] { r.Id }, Name = r.DisplayName.Text, Icon = Icons.Id(r.Product.Item), Unlocked = r.Requirements.AreMet,
+                            Needs = Needs(r.Requirements), Group = "Trees", Level = SelfLevel(r.Requirements, skillXp), Active = tree, Products = { r.Product.Item } });
                     break;
                 case MiningActionComponent m:
-                    foreach (var r in m.Rocks.Keys)
-                        targets.Add(new Target(new[] { r.Id }, r.DisplayName.Text, Icons.Id(r.Product.Item), r.Requirements.AreMet, Needs(r.Requirements), "Rocks") { Level = SelfLevel(r.Requirements, skillXp) });
+                    foreach (var (r, rock) in m.Rocks)
+                        targets.Add(new Target { Ids = new[] { r.Id }, Name = r.DisplayName.Text, Icon = Icons.Id(r.Product.Item), Unlocked = r.Requirements.AreMet,
+                            Needs = Needs(r.Requirements), Group = "Rocks", Level = SelfLevel(r.Requirements, skillXp), Active = rock, Products = { r.Product.Item } });
                     break;
                 case FishingActionComponent f:
-                    foreach (var r in f.Recipes.Keys)
-                        targets.Add(new Target(new[] { r.Id }, r.DisplayName.Text, Icons.Id(r) ?? Icons.Id(r.RandomProducts.Items.FirstOrDefault()?.Item),
-                            r.Requirements.AreMet, Needs(r.Requirements), "Fishing spots",
-                            string.Join(", ", r.RandomProducts.Items.Select(p => p.Item.DisplayName.Plural).Distinct().Take(4))) { Level = SelfLevel(r.Requirements, skillXp) });
+                    foreach (var (r, active) in f.Recipes)
+                    {
+                        var t = new Target { Ids = new[] { r.Id }, Name = r.DisplayName.Text, Icon = Icons.Id(r) ?? Icons.Id(r.RandomProducts.Items.FirstOrDefault()?.Item),
+                            Unlocked = r.Requirements.AreMet, Needs = Needs(r.Requirements), Group = "Fishing spots", Level = SelfLevel(r.Requirements, skillXp), Active = active };
+                        t.Products.AddRange(r.RandomProducts.Items.Select(p => p.Item).Distinct());
+                        targets.Add(t);
+                    }
                     break;
-                case ThievingActionComponent t:
-                    foreach (DictionaryEntry kv in (IDictionary)t.ActiveRecipes)
+                case ThievingActionComponent th:
+                    foreach (DictionaryEntry kv in (IDictionary)th.ActiveRecipes)
                     {
                         var recipe = Traverse.Create(kv.Value).Property("Recipe").GetValue() ?? kv.Key;
-                        bool can = kv.Value is ActiveThievingRecipe atr && t.CanThieveRecipe(atr);
-                        targets.Add(new Target(new[] { IdOf(kv.Key) }, SkillActions.Name(recipe), Icons.Id(recipe), can,
-                            can ? null : Needs(RequirementsOf(recipe)) ?? "unavailable", "Targets") { Level = SelfLevel(RequirementsOf(recipe), skillXp) });
+                        var req = RequirementsOf(recipe);
+                        bool can = kv.Value is ActiveThievingRecipe atr && th.CanThieveRecipe(atr);
+                        targets.Add(new Target { Ids = new[] { IdOf(kv.Key) }, Name = SkillActions.Name(recipe), Icon = Icons.Id(recipe), Unlocked = req?.AreMet ?? true,
+                            Needs = Needs(req), Group = "Targets", Level = SelfLevel(req, skillXp), Active = kv.Value,
+                            Note = can || !(req?.AreMet ?? true) ? null : "The game can't start this right now" });
                     }
                     break;
                 case AgilityActionComponent ag:
@@ -222,39 +253,44 @@ internal static class RemoteApi
                     {
                         if (kv.Value is not ActiveAgilityCourse course) continue;
                         foreach (DictionaryEntry pk in (IDictionary)course.ActivePaths)
-                            targets.Add(new Target(new[] { IdOf(kv.Key), IdOf(pk.Key) }, SkillActions.Name(pk.Key), Icons.Id(kv.Key), true, null, SkillActions.Name(kv.Key)));
+                            targets.Add(new Target { Ids = new[] { IdOf(kv.Key), IdOf(pk.Key) }, Name = SkillActions.Name(pk.Key), Icon = Icons.Id(kv.Key), Unlocked = true,
+                                Group = SkillActions.Name(kv.Key), Active = pk.Value });
                     }
                     break;
                 case AstrologyActionComponent s:
                     foreach (var (con, active) in s.ActiveConstellations)
-                        targets.Add(new Target(new[] { con.Id }, con.DisplayName.Text, Icons.Id(con), con.Requirements.AreMet, Needs(con.Requirements), "Constellations",
-                            con.Requirements.AreMet ? AstrologyGoal.Progress(game, new ActionTarget { EntityId = entity.Id, Ids = new[] { con.Id } }) : null)
-                            { Level = SelfLevel(con.Requirements, skillXp) });
+                        targets.Add(new Target { Ids = new[] { con.Id }, Name = con.DisplayName.Text, Icon = Icons.Id(con), Unlocked = con.Requirements.AreMet,
+                            Needs = Needs(con.Requirements), Group = "Constellations", Level = SelfLevel(con.Requirements, skillXp), Active = active,
+                            Note = con.Requirements.AreMet ? AstrologyGoal.Progress(game, new ActionTarget { EntityId = entity.Id, Ids = new[] { con.Id } }) : null });
                     break;
                 case HuntingActionComponent h:
+                    bool anyTrackable = false;
                     foreach (DictionaryEntry kv in (IDictionary)h.Animals)
                     {
+                        var req = RequirementsOf(kv.Key);
                         bool can = kv.Value is ActiveHuntingAnimal ha && h.CanTrackAnimal(ha);
+                        anyTrackable |= can;
                         var loc = Traverse.Create(kv.Value).Property("Location").GetValue();
-                        targets.Add(new Target(new[] { IdOf(kv.Key) }, SkillActions.Name(kv.Key), Icons.Id(kv.Key), can,
-                            can ? null : Needs(RequirementsOf(kv.Key)) ?? "can't hunt yet",
-                            loc == null ? "Animals" : SkillActions.Name(loc)) { Level = SelfLevel(RequirementsOf(kv.Key), skillXp) });
+                        targets.Add(new Target { Ids = new[] { IdOf(kv.Key) }, Name = SkillActions.Name(kv.Key), Icon = Icons.Id(kv.Key), Unlocked = req?.AreMet ?? true,
+                            Needs = Needs(req), Group = loc == null ? "Animals" : SkillActions.Name(loc), Level = SelfLevel(req, skillXp), Active = kv.Value });
                     }
+                    if (!anyTrackable) note = "The game can't track any animal right now: pick a trap on the Hunting page first. You can still queue them.";
                     break;
                 case CombatActionComponent:
                     foreach (var area in game.Data.GetDataRegistryOutput<CombatArea>().GetAllObjects())
                     {
                         if (area.DisplayRequirements != null && !area.DisplayRequirements.AreMet) continue;
                         foreach (var enemy in area.Enemies)
-                            targets.Add(new Target(new[] { area.Id, enemy.Id }, SkillActions.Name(enemy), Icons.Id(enemy), area.UnlockRequirements.AreMet,
-                                Needs(area.UnlockRequirements), area.DisplayName.Text));
+                            targets.Add(new Target { Ids = new[] { area.Id, enemy.Id }, Name = SkillActions.Name(enemy), Icon = Icons.Id(enemy),
+                                Unlocked = area.UnlockRequirements.AreMet, Needs = Needs(area.UnlockRequirements), Group = area.DisplayName.Text,
+                                Note = Traverse.Create(enemy).Property("CombatLevel").GetValue() is int cl ? $"Combat level {cl}" : null });
                     }
                     foreach (var dungeon in game.Data.GetDataRegistryOutput<Dungeon>().GetAllObjects())
                     {
                         var display = Traverse.Create(dungeon).Property("DisplayRequirements").GetValue<ConditionGroup>();
                         if (display != null && !display.AreMet) continue;
-                        targets.Add(new Target(new[] { dungeon.Id }, SkillActions.Name(dungeon), Icons.Id(dungeon), dungeon.UnlockRequirements.AreMet,
-                            Needs(dungeon.UnlockRequirements), "Dungeons"));
+                        targets.Add(new Target { Ids = new[] { dungeon.Id }, Name = SkillActions.Name(dungeon), Icon = Icons.Id(dungeon),
+                            Unlocked = dungeon.UnlockRequirements.AreMet, Needs = Needs(dungeon.UnlockRequirements), Group = "Dungeons" });
                     }
                     break;
                 default:
@@ -262,27 +298,43 @@ internal static class RemoteApi
                         foreach (var r in recipes.Values.OfType<IActiveCraftingRecipe>())
                         {
                             var (product, _) = Gather.PrimaryProduct(r);
-                            var t = new ActionTarget { EntityId = entity.Id, Ids = new[] { r.Recipe.Id } };
-                            var costs = Gather.Costs(game, t) ?? new();
-                            string detail = string.Join(", ", costs.Select(cst => $"{cst.qty} {cst.item.DisplayName.Plural} ({ItemRules.InBank(cst.item):N0})"));
-                            int? crafts = Gather.CraftsAffordable(game, t);
-                            if (crafts is int n && costs.Count > 0) detail += n > 0 ? $" - {n:N0} crafts" : " - none on hand";
                             var category = Traverse.Create(r.Recipe).Property("Category").GetValue();
-                            targets.Add(new Target(new[] { r.Recipe.Id }, r.Recipe.DisplayName.Text, Icons.Id(product) ?? Icons.Id(r.Recipe),
-                                r.Recipe.Requirements.AreMet, Needs(r.Recipe.Requirements), category == null ? "Recipes" : SkillActions.Name(category), detail)
-                                { Level = SelfLevel(r.Recipe.Requirements, skillXp) });
+                            var t = new Target { Ids = new[] { r.Recipe.Id }, Name = r.Recipe.DisplayName.Text, Icon = Icons.Id(product) ?? Icons.Id(r.Recipe),
+                                Unlocked = r.Recipe.Requirements.AreMet, Needs = Needs(r.Recipe.Requirements),
+                                Group = category == null ? "Recipes" : SkillActions.Name(category), Level = SelfLevel(r.Recipe.Requirements, skillXp), Active = r };
+                            if (product != null) t.Products.Add(product);
+                            targets.Add(t);
                         }
                     break;
             }
         }
+
+        var running = ActionQueue.RunningAction is { IsStarted: true } ra ? SkillActions.Capture(ra) : null;
+        var queue = ActionQueue.State?.Entries ?? new();
+        object Describe(Target t)
+        {
+            var at = new ActionTarget { EntityId = entity.Id, Ids = t.Ids };
+            var (ms, xp) = StatsOf(t.Active);
+            var log = ActionLog.Get(at);
+            double? xpHour = ActionLog.MsPerXp(log) is double msXp ? 3_600_000 / msXp : ms is double m && xp is double x ? x * 3_600_000 / m : null;
+            var costs = Gather.Costs(game, at);
+            return new
+            {
+                ids = t.Ids, name = t.Name, icon = t.Icon, unlocked = t.Unlocked, needs = t.Needs, level = t.Level, note = t.Note,
+                secs = ms / 1000, xp, xpHour, xpHourKnown = log?.Xp > 0,
+                done = log?.Actions,
+                running = running != null && running.EntityId == entity.Id && running.Ids.SequenceEqual(t.Ids),
+                queued = queue.Count(e => e.Target.EntityId == entity.Id && e.Target.Ids.SequenceEqual(t.Ids)),
+                products = t.Products.Take(6).Select(p => new { name = p.DisplayName.Plural, icon = Icons.Id(p), owned = ItemRules.InBank(p) }),
+                costs = costs?.Select(cst => new { name = cst.item.DisplayName.Plural, icon = Icons.Id(cst.item), qty = cst.qty, have = ItemRules.InBank(cst.item) }),
+                crafts = costs is { Count: > 0 } ? Gather.CraftsAffordable(game, at) : null,
+            };
+        }
+
         return Response.Json(new
         {
-            id = entity.Id, name = entity.DisplayName.Text, icon = Icons.Id(entity), level = skillXp == null ? null : Xp(skillXp),
-            groups = targets.GroupBy(t => t.Group).Select(g => new
-            {
-                name = g.Key,
-                targets = g.OrderBy(t => t.Level).Select(t => new { ids = t.Ids, name = t.Name, icon = t.Icon, unlocked = t.Unlocked, needs = t.Needs, detail = t.Detail, level = t.Level }),
-            }),
+            id = entity.Id, name = entity.DisplayName.Text, icon = Icons.Id(entity), level = skillXp == null ? null : Xp(skillXp), note,
+            groups = targets.GroupBy(t => t.Group).Select(g => new { name = g.Key, targets = g.OrderBy(t => t.Level).Select(Describe).ToList() }).ToList(),
         });
     }
 

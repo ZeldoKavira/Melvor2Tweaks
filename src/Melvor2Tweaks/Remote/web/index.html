@@ -124,10 +124,20 @@ svg{stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-lin
 .stile .mini svg{position:absolute;inset:0;transform:rotate(-90deg)}
 .stile .nm{font-size:12.5px;font-weight:700;line-height:1.2}
 .stile .lvl{font-size:11px;color:var(--muted)}
-.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
-.tcard{display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:rgba(0,0,0,.2);border:1px solid #33291b;text-align:left;min-height:62px}
+.tlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px}
+.tcard{display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;background:rgba(0,0,0,.2);border:1px solid #33291b;text-align:left;width:100%}
+.tcard:active{border-color:var(--gold2)}
 .tcard.locked{opacity:.5}
-.tcard .ic{width:40px;height:40px}
+.tcard.running{border-color:#4f8a3e;background:linear-gradient(90deg,rgba(125,216,122,.1),rgba(0,0,0,.2))}
+.tcard>.ic{width:44px;height:44px;align-self:flex-start}
+.tcard .chev{color:var(--faint);flex:none}.tcard .chev svg{width:16px;height:16px}
+.ic.xs{width:18px;height:18px}
+.jump{position:sticky;top:57px;z-index:5;display:flex;gap:6px;overflow-x:auto;padding:10px 0 6px;margin:0 -16px;padding-left:16px;padding-right:16px;
+  background:linear-gradient(var(--bg) 70%,transparent);scrollbar-width:none}
+.jump::-webkit-scrollbar{display:none}
+.jump .chip{flex:none;color:var(--text)}
+.badge.on{background:#21391f;color:var(--green);border-color:#4f8a3e}
+.badge.q{background:#1f2c39;color:var(--blue);border-color:#3e5f8a}
 .badge{display:inline-block;font-size:10.5px;font-weight:800;padding:1px 6px;border-radius:99px;background:#2e2518;color:var(--gold);border:1px solid #5a4523}
 .bgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(68px,1fr));gap:8px}
 .btile{position:relative;aspect-ratio:1;border-radius:12px;background:radial-gradient(circle at 50% 35%,#2f261a,#1b160f);border:1px solid #3a2f20;display:grid;place-items:center;padding:0}
@@ -401,19 +411,53 @@ function renderSkills() {
       <div class="nm">${esc(s.name)}</div><div class="lvl">${s.xp ? `Lv ${s.xp.level}` : "Areas"}</div></button>`).join("") + `</div>`;
 }
 
+// one line of numbers for a target: time per action, XP each, XP per hour
+function targetStats(t) {
+  const parts = [];
+  if (t.secs) parts.push(`${t.secs < 10 ? t.secs.toFixed(t.secs < 1 ? 2 : 1) : Math.round(t.secs)}s`);
+  if (t.xp) parts.push(`${t.xp < 10 ? t.xp.toFixed(1).replace(".0", "") : fmt(Math.round(t.xp))} XP`);
+  if (t.xpHour) parts.push(`${t.xpHourKnown ? "" : "~"}${short(t.xpHour)} XP/hr`);
+  return parts.join(" · ");
+}
+function itemsLine(t) {
+  let h = "";
+  if (t.costs?.length) h += `<div class="row" style="flex-wrap:wrap;gap:4px 10px;margin-top:6px">` + t.costs.map(c =>
+      `<span class="row tiny ${c.have >= c.qty ? "" : "red"}" style="gap:3px" title="${esc(c.name)}">${icon(c.icon, "xs")}${fmt(c.qty)}<span class="faint">/${short(c.have)}</span></span>`).join("") +
+      (t.crafts != null ? `<span class="tiny ${t.crafts > 0 ? "green" : "red"}">${t.crafts > 0 ? `${short(t.crafts)} crafts` : "none on hand"}</span>` : "") + `</div>`;
+  if (t.products?.length) h += `<div class="row" style="flex-wrap:wrap;gap:4px 10px;margin-top:6px"><span class="tiny faint">${t.costs?.length ? "Makes" : "Gives"}</span>` +
+      t.products.map(p => `<span class="row tiny" style="gap:3px" title="${esc(p.name)}">${icon(p.icon, "xs")}<span class="muted">${short(p.owned)}</span></span>`).join("") + `</div>`;
+  return h;
+}
+function targetCard(t) {
+  const data = esc(JSON.stringify(t));
+  const badges = (t.level ? `<span class="badge">Lv ${t.level}</span>` : "") + (t.running ? `<span class="badge on">Running</span>` : "") + (t.queued ? `<span class="badge q">Queued${t.queued > 1 ? " ×" + t.queued : ""}</span>` : "");
+  return `<button class="tcard ${t.unlocked ? "" : "locked"} ${t.running ? "running" : ""}" data-target="${data}">
+    ${icon(t.icon)}<div class="grow">
+      <div class="row" style="gap:6px;flex-wrap:wrap"><b class="small">${esc(t.name)}</b>${badges}</div>
+      ${t.unlocked ? `${targetStats(t) ? `<div class="tiny muted" style="margin-top:2px">${targetStats(t)}</div>` : ""}
+        ${t.note ? `<div class="tiny gold" style="margin-top:2px">${esc(t.note)}</div>` : ""}${itemsLine(t)}`
+      : `<div class="tiny red" style="margin-top:2px">${svg("lock", 'style="width:11px;height:11px;vertical-align:-1px"')} ${esc(t.needs || "Locked")}</div>`}
+    </div><span class="chev">${svg('<path d="M9 6l6 6-6 6"/>')}</span></button>`;
+}
+
 function renderSkill() {
   const s = skill, lv = s.level;
+  const all = s.groups.flatMap(g => g.targets), open = all.filter(t => t.unlocked).length, run = all.find(t => t.running);
   let h = `<button class="btn sm ghost" style="margin:-4px 0 10px" data-do="skills">${svg("back")}Skills</button>
     <div class="card hero"><div class="row"><div class="ring">${lv ? ring(lv.pct, 84, 6) : ""}${icon(s.icon, "lg")}${lv ? `<span class="lv">Lv ${lv.level}</span>` : ""}</div>
-      <div class="grow"><div class="name">${esc(s.name)}</div>${lv ? `<div class="small muted">${fmt(lv.next - lv.xp)} XP to level ${lv.level + 1}</div>
-      <div class="bar xp" style="margin-top:8px"><i style="width:${(lv.pct * 100).toFixed(1)}%"></i></div>` : ""}</div></div></div>`;
+      <div class="grow"><div class="name">${esc(s.name)}</div>
+      ${lv ? `<div class="small muted">${fmt(lv.next - lv.xp)} XP to level ${lv.level + 1}</div><div class="bar xp" style="margin-top:8px"><i style="width:${(lv.pct * 100).toFixed(1)}%"></i></div>` : ""}
+      <div class="tiny muted" style="margin-top:8px">${open} of ${all.length} unlocked${run ? ` · <span class="green">doing ${esc(run.name)}</span>` : ""}</div></div></div>
+      ${s.note ? `<div class="small gold" style="margin-top:10px">${esc(s.note)}</div>` : ""}</div>`;
   if (!s.groups.length) h += `<div class="card empty" style="margin-top:12px">Nothing to start in this skill from here.</div>`;
-  for (const g of s.groups) {
-    h += `<h3>${esc(g.name)}</h3><div class="tgrid">` + g.targets.map(t => `<button class="tcard ${t.unlocked ? "" : "locked"}"
-        data-target="${esc(JSON.stringify({ ids: t.ids, name: t.name, unlocked: t.unlocked, needs: t.needs }))}">
-        ${icon(t.icon)}<div class="grow"><div class="small" style="font-weight:700">${esc(t.name)}</div>
-        ${t.unlocked ? (t.detail ? `<div class="tiny muted clamp2">${esc(t.detail)}</div>` : (t.level ? `<span class="badge">Lv ${t.level}</span>` : ""))
-                     : `<div class="tiny red clamp2">${svg("lock", 'style="width:11px;height:11px;vertical-align:-1px"')} ${esc(t.needs || "Locked")}</div>`}</div></button>`).join("") + `</div>`;
+  const showLocked = store("showLocked") === "1";
+  h += `<label class="switch" style="border:0;padding:12px 4px 0"><span class="grow small muted">Show locked</span><input type="checkbox" id="showLocked" ${showLocked ? "checked" : ""}></label>`;
+  const groups = s.groups.map((g, i) => ({ ...g, i, list: g.targets.filter(t => showLocked || t.unlocked) })).filter(g => g.list.length);
+  if (groups.length > 2)
+    h += `<div class="jump">${groups.map(g => `<button class="chip" data-jump="g${g.i}">${esc(g.name)}</button>`).join("")}</div>`;
+  for (const g of groups) {
+    const list = g.list;
+    h += `<h3 id="g${g.i}">${esc(g.name)}<span class="more" style="color:var(--faint)">${g.targets.filter(t => t.unlocked).length}/${g.targets.length}</span></h3><div class="tlist">` + list.map(targetCard).join("") + `</div>`;
   }
   return h;
 }
@@ -425,8 +469,11 @@ async function openTarget(t) {
   let o;
   try { o = await api(`options?entity=${encodeURIComponent(skill.id)}&ids=${encodeURIComponent(t.ids.join(","))}&label=${encodeURIComponent(sheetTarget.label)}`); }
   catch (e) { toast(e.message, true); return; }
-  let h = `<div class="grab"></div><div class="row" style="margin-bottom:12px"><div class="grow"><div class="tiny gold" style="letter-spacing:.12em;text-transform:uppercase;font-weight:800">${esc(skill.name)}</div>
-      <div style="font-size:19px;font-weight:800">${esc(t.name)}</div><div class="small muted">When should it stop?</div></div></div>
+  let h = `<div class="grab"></div><div class="row" style="margin-bottom:10px">${icon(t.icon, "lg")}<div class="grow"><div class="tiny gold" style="letter-spacing:.12em;text-transform:uppercase;font-weight:800">${esc(skill.name)}</div>
+      <div style="font-size:19px;font-weight:800">${esc(t.name)}</div>${targetStats(t) ? `<div class="small muted">${targetStats(t)}</div>` : ""}</div></div>
+    ${t.note ? `<div class="small gold" style="margin-bottom:6px">${esc(t.note)}</div>` : ""}${itemsLine(t)}
+    ${t.done ? `<div class="tiny faint" style="margin-top:6px">${fmt(t.done)} done so far${t.running ? " · running now" : ""}${t.queued ? ` · in the queue ${t.queued}×` : ""}</div>` : ""}
+    <div class="small muted" style="margin:14px 2px 8px">When should it stop?</div>
     <div class="seg" style="margin-bottom:12px"><button data-mode="queue" class="${sheetMode === "queue" ? "on" : ""}">Add to queue</button><button data-mode="start" class="${sheetMode === "start" ? "on" : ""}">Start now</button></div>
     <button class="opt" data-pick="None"><b>Until stops</b><span class="small muted grow">${esc(o.stopsNote)}</span></button>`;
   for (const m of o.milestones || [])
@@ -537,6 +584,7 @@ $("#view").addEventListener("click", async e => {
   const t = e.target.closest("[data-target]"); if (t) return openTarget(JSON.parse(t.dataset.target));
   const it = e.target.closest("[data-item]"); if (it) return openItem(JSON.parse(it.dataset.item));
   const sp = e.target.closest("[data-speed]"); if (sp) return act("speed", { value: Number(sp.dataset.speed) });
+  const j = e.target.closest("[data-jump]"); if (j) { const el = document.getElementById(j.dataset.jump); if (el) window.scrollTo({ top: el.getBoundingClientRect().top + scrollY - 70, behavior: "smooth" }); return; }
   const so = e.target.closest("[data-sort]"); if (so) { bankSort = so.dataset.sort; store("bankSort", bankSort); render(); return; }
   const skp = e.target.closest("[data-skip]");
   if (skp) {
@@ -548,7 +596,11 @@ $("#view").addEventListener("click", async e => {
       <button class="btn gold block" style="margin-bottom:8px" data-do="skipgo" data-minutes="${minutes}">${svg("hour")}Skip ${len}</button><button class="btn ghost block" data-do="close">Cancel</button>`);
   }
 });
-$("#view").addEventListener("change", e => { const t = e.target; if (t.dataset.qtoggle) act("queue", { op: t.dataset.qtoggle, on: t.checked }); });
+$("#view").addEventListener("change", e => {
+  const t = e.target;
+  if (t.dataset.qtoggle) act("queue", { op: t.dataset.qtoggle, on: t.checked });
+  if (t.id === "showLocked") { store("showLocked", t.checked ? "1" : "0"); render(); }
+});
 $("#view").addEventListener("input", e => {
   if (e.target.id !== "bq") return;
   bankQuery = e.target.value; const pos = e.target.selectionStart; render();
