@@ -3,93 +3,177 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#17140f">
+<meta name="theme-color" content="#120f0a">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="/manifest.webmanifest">
 <title>Melvor Idle 2</title>
 <style>
 :root{
-  --bg:#17140f;--panel:#221d16;--panel2:#2b241b;--line:#3d3324;--gold:#f5c84c;--text:#ece2c9;--muted:#a99d84;
-  --green:#7fd47f;--red:#e46a5a;--radius:12px;
+  --bg:#120f0a;--bg2:#1a150f;--card:#221c14;--card2:#2a2219;--line:#3e3223;--line2:#5a4830;
+  --gold:#f2c14e;--gold2:#c8962b;--goldglow:rgba(242,193,78,.35);--text:#efe5cc;--muted:#a3967b;--faint:#6f6450;
+  --green:#7dd87a;--red:#ef6b5b;--blue:#79b8f0;--r:14px;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-body{padding:env(safe-area-inset-top) 0 calc(64px + env(safe-area-inset-bottom))}
-header{position:sticky;top:0;z-index:5;background:rgba(23,20,15,.96);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);
-  padding:10px 16px;display:flex;align-items:center;gap:10px}
-header h1{font-size:17px;margin:0;color:var(--gold);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pill{font-size:12px;padding:3px 8px;border-radius:99px;background:var(--panel2);color:var(--muted);white-space:nowrap}
-main{padding:12px 16px;max-width:720px;margin:0 auto}
-nav{position:fixed;bottom:0;left:0;right:0;z-index:6;display:flex;background:#1d1912;border-top:1px solid var(--line);
-  padding-bottom:env(safe-area-inset-bottom)}
-nav button{flex:1;background:none;border:0;color:var(--muted);padding:9px 0 8px;font:600 12px system-ui;display:flex;flex-direction:column;align-items:center;gap:3px}
-nav button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-nav button.on{color:var(--gold)}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px}
-.card h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 10px;font-weight:700}
-.row{display:flex;align-items:center;gap:10px}
+html{background:var(--bg)}
+body{margin:0;color:var(--text);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-variant-numeric:tabular-nums;
+  min-height:100vh;padding-bottom:calc(72px + env(safe-area-inset-bottom));
+  background:radial-gradient(120% 60% at 50% -10%,#2c2216 0%,var(--bg) 60%) fixed}
+button{font:inherit;color:inherit}
+img{user-select:none;-webkit-user-drag:none}
+
+/* app bar */
+.appbar{position:sticky;top:0;z-index:10;padding:calc(8px + env(safe-area-inset-top)) 16px 0;background:rgba(18,15,10,.88);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.appbar .top{display:flex;align-items:center;gap:10px;padding-bottom:8px}
+.appbar .ic{width:30px;height:30px}
+.appbar .ttl{flex:1;min-width:0}
+.appbar .ttl b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.appbar .ttl span{display:block;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:99px;background:var(--card2);border:1px solid var(--line);font-size:12px;color:var(--muted);white-space:nowrap}
+.chip.gold{color:var(--gold);border-color:#6a5222;background:#2c2312}
+.chip svg{width:13px;height:13px}
+.livebar{height:3px;margin:0 -16px;background:#2a2218;overflow:hidden}
+.livebar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--gold2),var(--gold));box-shadow:0 0 8px var(--goldglow)}
+
+main{padding:14px 16px 8px;max-width:760px;margin:0 auto}
+h3{margin:22px 4px 10px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;display:flex;align-items:center;gap:8px}
+h3:first-child{margin-top:4px}
+h3 .more{margin-left:auto;letter-spacing:0;text-transform:none;font-weight:600;color:var(--gold);font-size:13px;background:none;border:0;padding:0}
+.card{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);border-radius:var(--r);padding:14px;box-shadow:0 1px 0 rgba(255,255,255,.04) inset,0 6px 18px rgba(0,0,0,.25)}
+.card+.card{margin-top:10px}
+.row{display:flex;align-items:center;gap:12px}
 .grow{flex:1;min-width:0}
-.muted{color:var(--muted)}
-.small{font-size:13px}
-.gold{color:var(--gold)}
-.green{color:var(--green)}
-.red{color:var(--red)}
+.muted{color:var(--muted)}.faint{color:var(--faint)}.gold{color:var(--gold)}.green{color:var(--green)}.red{color:var(--red)}
+.small{font-size:13px}.tiny{font-size:11.5px}
 .ellip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-img.ic,span.ic{width:36px;height:36px;object-fit:contain;flex:none;display:inline-block}
-img.ic.sm{width:26px;height:26px}
-.big{font-size:18px;font-weight:700}
-.bar{height:6px;background:#3a3123;border-radius:99px;overflow:hidden;margin-top:6px}
-.bar i{display:block;height:100%;background:linear-gradient(90deg,#c99a2e,var(--gold))}
-button.btn{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font:600 14px system-ui;min-height:42px}
-button.btn:active{transform:scale(.98)}
-button.btn.primary{background:#3c6b2f;border-color:#4f8a3e;color:#fff}
-button.btn.danger{background:#6b2f2a;border-color:#8a3e36;color:#fff}
-button.btn.gold{background:#5a4513;border-color:#8a6a1e;color:var(--gold)}
-button.btn.sm{padding:6px 10px;min-height:34px;font-size:13px}
+.clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ic{width:36px;height:36px;object-fit:contain;flex:none;display:inline-block}
+.ic.lg{width:56px;height:56px}.ic.sm{width:24px;height:24px}
+
+/* hero */
+.hero{position:relative;overflow:hidden;border-color:var(--line2)}
+.hero::before{content:"";position:absolute;inset:-40% -20% auto auto;width:220px;height:220px;background:radial-gradient(circle,var(--goldglow),transparent 65%);opacity:.5;pointer-events:none}
+.ring{position:relative;width:84px;height:84px;flex:none;display:grid;place-items:center}
+.ring svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.ring .lv{position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);background:#1b150e;border:1px solid var(--gold2);color:var(--gold);font-size:11px;font-weight:800;padding:1px 7px;border-radius:99px}
+.hero .skill{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:800}
+.hero .name{font-size:20px;font-weight:800;line-height:1.2;margin:2px 0 4px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.bar{height:8px;background:#151109;border:1px solid #33291b;border-radius:99px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--gold2),var(--gold))}
+.bar.xp i{background:linear-gradient(90deg,#3f8a4a,var(--green))}
+i.fast{background:repeating-linear-gradient(110deg,var(--gold2) 0 14px,var(--gold) 14px 28px)!important;background-size:60px 100%!important;animation:flow .6s linear infinite}
+@keyframes flow{to{background-position:60px 0}}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.stat{background:rgba(0,0,0,.22);border:1px solid #33291b;border-radius:10px;padding:8px 10px}
+.stat b{display:block;font-size:16px}
+.stat span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:10px 16px;border-radius:12px;border:1px solid var(--line2);
+  background:var(--card2);font-weight:700;font-size:14px;cursor:pointer;transition:transform .08s ease,filter .15s}
+.btn:active{transform:scale(.97)}
+.btn svg{width:17px;height:17px}
+.btn.gold{background:linear-gradient(180deg,#f5cf6a,#c8962b);border-color:#e0b04a;color:#2a1d05}
+.btn.red{background:linear-gradient(180deg,#a8463b,#7d2f27);border-color:#b8584c;color:#fff}
+.btn.green{background:linear-gradient(180deg,#4f9b4a,#2f6e2c);border-color:#62ad5c;color:#fff}
+.btn.ghost{background:transparent}
+.btn.sm{min-height:34px;padding:6px 12px;font-size:13px;border-radius:10px}
+.btn.block{width:100%}
 .btns{display:flex;flex-wrap:wrap;gap:8px}
-.chip{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:99px;padding:7px 13px;font:600 13px system-ui}
-.chip.on{background:#5a4513;border-color:#8a6a1e;color:var(--gold)}
-.list .item{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
-.list .item:first-child{border-top:0}
-.list button.item{width:100%;text-align:left;background:none;border-left:0;border-right:0;border-bottom:0;color:var(--text);font:inherit;margin:0;border-radius:0}
-.locked{opacity:.5}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-.tile{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:10px;display:flex;gap:8px;align-items:center;text-align:left;color:var(--text);font:inherit}
-.tile.active{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
-.switch{display:flex;align-items:center;justify-content:space-between;padding:8px 0;gap:10px}
-.switch input{width:44px;height:26px;accent-color:var(--gold);flex:none}
-input[type=number],input[type=text],input[type=search],select{background:#120f0b;border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px;font:15px system-ui;min-height:42px;width:100%}
-.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:20;display:none}
-.sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;background:var(--panel);border-top:1px solid var(--line);border-radius:18px 18px 0 0;
-  padding:16px 16px calc(16px + env(safe-area-inset-bottom));max-height:85vh;overflow:auto;transform:translateY(105%);transition:transform .22s ease;max-width:720px;margin:0 auto}
-.sheet{pointer-events:none}
-.sheet.open{transform:none;pointer-events:auto}
-.sheet .handle{width:40px;height:4px;border-radius:9px;background:#4a3f2e;margin:-4px auto 12px}
-.opt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--panel2);border:1px solid var(--line);border-radius:10px;
-  padding:11px 12px;margin-bottom:8px;color:var(--text);font:inherit}
-.opt b{color:var(--gold);white-space:nowrap}
-.seg{display:flex;background:#120f0b;border:1px solid var(--line);border-radius:10px;padding:3px;margin-bottom:12px}
-.seg button{flex:1;border:0;background:none;color:var(--muted);padding:8px;border-radius:8px;font:600 14px system-ui}
-.seg button.on{background:var(--panel2);color:var(--gold)}
-#toast{position:fixed;left:16px;right:16px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:30;background:#2f2a1f;border:1px solid #6b5a2e;color:var(--text);
-  padding:12px 14px;border-radius:12px;display:none;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:688px;margin:0 auto}
-#toast.err{border-color:#8a3e36}
-.back{background:none;border:0;color:var(--gold);font:600 15px system-ui;padding:6px 0;margin-bottom:6px}
-.empty{color:var(--muted);text-align:center;padding:24px 8px}
-.qrow .num{width:18px;color:var(--muted);text-align:right;flex:none;font-size:13px}
-.qrow{gap:8px!important}
-.qrow .label{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:14px}
-.qrow .iconbtn{width:32px;height:32px}
-.iconbtn{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;width:36px;height:36px;display:grid;place-items:center;flex:none;padding:0}
-.iconbtn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.sticky-search{position:sticky;top:49px;background:var(--bg);padding:6px 0 10px;z-index:4}
+.btns .btn{flex:1}
+.seg{display:flex;background:#151109;border:1px solid var(--line);border-radius:12px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:none;color:var(--muted);padding:8px 0;border-radius:9px;font-weight:700;font-size:14px}
+.seg button.on{background:linear-gradient(180deg,#3a2e1c,#2c2314);color:var(--gold);box-shadow:0 0 0 1px #6a5222 inset}
+.iconbtn{width:38px;height:38px;flex:none;display:grid;place-items:center;border-radius:10px;border:1px solid var(--line);background:var(--card2);padding:0}
+.iconbtn svg{width:18px;height:18px}
+.iconbtn.gold{color:#2a1d05;background:linear-gradient(180deg,#f5cf6a,#c8962b);border-color:#e0b04a}
+svg{stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* switch */
+.switch{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #30271b}
+.switch:first-child{border-top:0;padding-top:2px}
+.switch input{appearance:none;-webkit-appearance:none;width:48px;height:28px;border-radius:99px;background:#3a3022;position:relative;flex:none;transition:background .2s;margin:0}
+.switch input::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#d8ccb0;transition:transform .2s}
+.switch input:checked{background:linear-gradient(90deg,var(--gold2),var(--gold))}
+.switch input:checked::after{transform:translateX(20px);background:#fff}
+
+/* lists */
+.list>*+*{border-top:1px solid #30271b}
+.li{display:flex;align-items:center;gap:12px;padding:10px 2px;width:100%;text-align:left;background:none;border-left:0;border-right:0;border-bottom:0}
+.li:first-child{border-top:0}
+
+/* queue */
+.qitem{display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:rgba(0,0,0,.18);border:1px solid #33291b;transition:transform .15s,opacity .15s}
+.qitem+.qitem{margin-top:8px}
+.qitem.first{border-color:#6a5222;background:linear-gradient(90deg,rgba(242,193,78,.12),rgba(0,0,0,.18))}
+.qitem.dragging{opacity:.45}
+.qitem.over-up{box-shadow:0 -3px 0 var(--gold)}
+.qitem.over-down{box-shadow:0 3px 0 var(--gold)}
+.qnum{width:24px;height:24px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;background:#2e2518;color:var(--muted);border:1px solid #4a3c27}
+.qitem.first .qnum{background:var(--gold);color:#2a1d05;border-color:var(--gold)}
+.handle{width:28px;height:38px;flex:none;display:grid;place-items:center;color:var(--faint);touch-action:none;cursor:grab}
+.handle svg{width:18px;height:18px}
+
+/* grids */
+.sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px}
+.stile{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 6px 10px;border-radius:var(--r);
+  background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);text-align:center}
+.stile.active{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset,0 0 18px var(--goldglow)}
+.stile .mini{position:relative;width:54px;height:54px;display:grid;place-items:center}
+.stile .mini svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.stile .nm{font-size:12.5px;font-weight:700;line-height:1.2}
+.stile .lvl{font-size:11px;color:var(--muted)}
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.tcard{display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:rgba(0,0,0,.2);border:1px solid #33291b;text-align:left;min-height:62px}
+.tcard.locked{opacity:.5}
+.tcard .ic{width:40px;height:40px}
+.badge{display:inline-block;font-size:10.5px;font-weight:800;padding:1px 6px;border-radius:99px;background:#2e2518;color:var(--gold);border:1px solid #5a4523}
+.bgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(68px,1fr));gap:8px}
+.btile{position:relative;aspect-ratio:1;border-radius:12px;background:radial-gradient(circle at 50% 35%,#2f261a,#1b160f);border:1px solid #3a2f20;display:grid;place-items:center;padding:0}
+.btile .ic{width:44px;height:44px}
+.btile .q{position:absolute;right:5px;bottom:3px;font-size:11.5px;font-weight:800;text-shadow:0 1px 2px #000,0 0 4px #000}
+.btile.locked::after{content:"🔒";position:absolute;left:4px;top:2px;font-size:11px}
+.btile.rule{border-color:#5a4523}
+
+/* sheet */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:41;max-width:760px;margin:0 auto;max-height:88vh;overflow:auto;
+  background:linear-gradient(180deg,#2b231a,#1f1912);border:1px solid var(--line2);border-bottom:0;border-radius:20px 20px 0 0;
+  padding:10px 16px calc(18px + env(safe-area-inset-bottom));transform:translateY(105%);transition:transform .25s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+.sheet.on{transform:none;pointer-events:auto}
+.grab{width:42px;height:5px;border-radius:9px;background:#4e4130;margin:0 auto 14px}
+.opt{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px 14px;margin-bottom:8px;border-radius:12px;background:rgba(0,0,0,.22);border:1px solid #3a2f20}
+.opt b{color:var(--gold);white-space:nowrap;min-width:72px}
+.opt:active{border-color:var(--gold2)}
+input[type=number],input[type=text],input[type=search],select{background:#120e09;border:1px solid var(--line);color:var(--text);border-radius:11px;padding:10px 12px;font:15px system-ui;min-height:44px;width:100%}
+input:focus,select:focus{outline:none;border-color:var(--gold2)}
+
+/* nav */
+nav{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;justify-content:space-around;padding:6px 8px calc(6px + env(safe-area-inset-bottom));
+  background:rgba(20,16,11,.94);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--line)}
+nav button{flex:1;max-width:120px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;border:0;background:none;color:var(--faint);font-size:11px;font-weight:700;border-radius:12px}
+nav button svg{width:22px;height:22px}
+nav button.on{color:var(--gold)}
+nav button.on svg{filter:drop-shadow(0 0 6px var(--goldglow))}
+
+#toast{position:fixed;left:16px;right:16px;bottom:calc(82px + env(safe-area-inset-bottom));z-index:50;max-width:520px;margin:0 auto;padding:12px 14px;border-radius:12px;
+  background:#2d251a;border:1px solid #6a5222;box-shadow:0 10px 30px rgba(0,0,0,.5);transform:translateY(20px);opacity:0;transition:all .2s;pointer-events:none}
+#toast.on{transform:none;opacity:1}
+#toast.err{border-color:#9a4237}
+.empty{color:var(--muted);text-align:center;padding:28px 10px}
+.fade{animation:fade .18s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.skel{height:80px;border-radius:var(--r);background:linear-gradient(90deg,#211b13,#2b2318,#211b13);background-size:200% 100%;animation:sk 1.2s infinite}
+@keyframes sk{to{background-position:-200% 0}}
 </style>
 </head>
 <body>
-<header><h1 id="title">Melvor Idle 2</h1><span class="pill" id="bankPill"></span><span class="pill" id="speedPill"></span></header>
-<main id="view"></main>
+<div class="appbar"><div class="top" id="appbar"></div><div class="livebar"><i id="livebar"></i></div></div>
+<main id="view"><div class="skel"></div></main>
 <nav id="nav"></nav>
-<div class="sheet-bg" id="sheetBg"></div>
+<div class="scrim" id="scrim"></div>
 <div class="sheet" id="sheet"></div>
 <div id="toast"></div>
 <script>
@@ -98,291 +182,339 @@ const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmt = n => Number(n ?? 0).toLocaleString();
 const short = n => { n = Number(n || 0); const a = Math.abs(n);
-  return a >= 1e9 ? (n/1e9).toFixed(2)+"B" : a >= 1e6 ? (n/1e6).toFixed(2)+"M" : a >= 1e4 ? (n/1e3).toFixed(1)+"K" : fmt(n); };
-const icon = id => id ? `<img class="ic" loading="lazy" src="/icon/${esc(id)}.png" alt="">` : `<span class="ic"></span>`;
-const iconSm = id => id ? `<img class="ic sm" loading="lazy" src="/icon/${esc(id)}.png" alt="">` : "";
-const svg = p => `<svg viewBox="0 0 24 24">${p}</svg>`;
-
-const TABS = [
-  ["now", "Now", svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>')],
-  ["queue", "Queue", svg('<path d="M4 6h16M4 12h16M4 18h10"/>')],
-  ["skills", "Skills", svg('<path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z"/>')],
-  ["bank", "Bank", svg('<path d="M3 9l9-5 9 5M5 10v8M19 10v8M9 10v8M15 10v8M3 20h18"/>')],
-  ["log", "Log", svg('<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h6"/>')],
-];
+  return a >= 1e9 ? (n/1e9).toFixed(2).replace(/\.?0+$/,"")+"B" : a >= 1e6 ? (n/1e6).toFixed(2).replace(/\.?0+$/,"")+"M" : a >= 1e4 ? (n/1e3).toFixed(1).replace(/\.0$/,"")+"K" : fmt(Math.round(n)); };
+const icon = (id, cls = "") => id ? `<img class="ic ${cls}" loading="lazy" src="/icon/${esc(id)}.png" alt="">` : `<span class="ic ${cls}"></span>`;
+const I = {
+  now: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  queue: '<path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
+  skills: '<path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z"/>',
+  bank: '<path d="M3 9l9-5 9 5M5 10v8M19 10v8M9 10v8M15 10v8M3 20h18"/>',
+  log: '<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h6"/>',
+  play: '<path d="M8 5l11 7-11 7z"/>', stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>', next: '<path d="M5 5l9 7-9 7zM18 5v14"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>', grip: '<path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"/>',
+  hour: '<path d="M6 2h12M6 22h12M7 2c0 6 10 6 10 10S7 16 7 22M17 2c0 6-10 6-10 10s10 4 10 10"/>', back: '<path d="M15 18l-6-6 6-6"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+};
+const svg = (name, extra = "") => `<svg viewBox="0 0 24 24" ${extra}>${I[name] || name}</svg>`;
+const ring = (pct, size, stroke, color = "url(#g)") => { const r = (size - stroke) / 2, c = 2 * Math.PI * r;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><defs><linearGradient id="g"><stop offset="0" stop-color="#c8962b"/><stop offset="1" stop-color="#f2c14e"/></linearGradient></defs>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" stroke="#2e2518" stroke-width="${stroke}"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" stroke="${color}" stroke-width="${stroke}" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - Math.max(0, Math.min(1, pct)))}"/></svg>`; };
 
 function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } }
+const buzz = () => { try { navigator.vibrate && navigator.vibrate(8); } catch {} };
 
 let tab = store("tab") || "now";
-let state = null, skill = null, bank = null, droplog = null;
-let bankQuery = "", bankSort = "value";
-let sheetOpen = false, sheetMode = store("mode") || "queue", sheetTarget = null;
+let state = null, skill = null, bank = null, droplog = null, stateAt = 0;
+let bankQuery = "", bankSort = store("bankSort") || "value";
+let sheetOn = false, sheetMode = store("mode") || "queue", sheetTarget = null, askYes = null;
 
+// ---- api -------------------------------------------------------------------------------------
 async function api(path, body) {
-  const res = await fetch("/api/" + path, body === undefined ? {} :
-    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const res = await fetch("/api/" + path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   let data = null;
   try { data = await res.json(); } catch {}
   if (res.status === 401) { showLogin(); throw new Error("not logged in"); }
   if (!res.ok) throw new Error(data?.error || ("Error " + res.status));
   return data;
 }
-
 async function act(path, body) {
-  try {
-    const r = await api(path, body);
-    if (r?.message) toast(r.message);
-    await load();
-    return r;
-  } catch (e) { if (e.message !== "not logged in") toast(e.message, true); }
+  buzz();
+  try { const r = await api(path, body); if (r?.message) toast(r.message); await load(); return r; }
+  catch (e) { if (e.message !== "not logged in") toast(e.message, true); }
 }
-
 let toastTimer;
 function toast(msg, err) {
-  const t = $("#toast");
-  t.textContent = msg; t.className = err ? "err" : ""; t.style.display = "block";
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.style.display = "none", 3500);
+  const t = $("#toast"); t.textContent = msg; t.className = "on" + (err ? " err" : "");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = "", 3200);
 }
-
 function showLogin() {
-  $("#view").innerHTML = `<div class="card"><h2>Not logged in</h2><p>Open the phone link from the game once: Actions menu → Phone → Copy link.</p></div>`;
+  $("#view").innerHTML = `<div class="card fade"><b class="gold">Not logged in</b><p class="muted">In the game, open Settings → Melvor2Tweaks → Phone access and scan the QR code (or open the copied link) on this phone.</p></div>`;
 }
 
-// ---- nav ---------------------------------------------------------------------------------------
-function drawNav() {
-  $("#nav").innerHTML = TABS.map(([id, label, ic]) => `<button data-tab="${id}" class="${tab === id ? "on" : ""}">${ic}${label}</button>`).join("");
-}
+// ---- nav + app bar ---------------------------------------------------------------------------
+const TABS = [["now", "Now"], ["queue", "Queue"], ["skills", "Skills"], ["bank", "Bank"], ["log", "Log"]];
+function drawNav() { $("#nav").innerHTML = TABS.map(([id, label]) => `<button data-tab="${id}" class="${tab === id ? "on" : ""}">${svg(id)}${label}</button>`).join(""); }
 $("#nav").addEventListener("click", e => {
-  const b = e.target.closest("button[data-tab]"); if (!b) return;
+  const b = e.target.closest("[data-tab]"); if (!b) return;
   if (tab === b.dataset.tab && tab === "skills") skill = null;
-  tab = b.dataset.tab; store("tab", tab); drawNav(); render(); load(); window.scrollTo(0, 0);
+  tab = b.dataset.tab; store("tab", tab); drawNav(); render(); load(); window.scrollTo({ top: 0 });
 });
+function drawAppbar() {
+  const r = state.running;
+  $("#appbar").innerHTML = `${r ? icon(r.icon) : `<span class="ic"></span>`}
+    <div class="ttl"><b>${r ? esc(r.label.split(": ").slice(1).join(": ") || r.label) : "Idle"}</b><span>${r ? esc(r.label.split(": ")[0]) + (r.eta && r.eta !== "no end" ? " · " + esc(r.eta) + " left" : "") : "Nothing running"}</span></div>
+    <span class="chip gold">${svg("hour")}${esc(state.timeBank.text)}</span><span class="chip">${state.speed}x</span>`;
+}
 
-// ---- data --------------------------------------------------------------------------------------
+// ---- data ------------------------------------------------------------------------------------
 async function load() {
   try {
-    state = await api("state");
-    drawHeader();
+    state = await api("state"); stateAt = performance.now();
+    drawAppbar();
     if (tab === "bank") bank = await api("bank");
     if (tab === "log") droplog = await api("droplog");
     if (tab === "skills" && skill) skill = await api("skill?id=" + encodeURIComponent(skill.id));
-    if (!sheetOpen) render();
+    if (!sheetOn && !dragging) render();
   } catch (e) {
-    if (e.message !== "not logged in")
-      $("#view").innerHTML = `<div class="card"><h2>Can't reach the game</h2><p class="muted">${esc(e.message)}</p></div>`;
+    if (e.message !== "not logged in") $("#view").innerHTML = `<div class="card fade"><b class="red">Can't reach the game</b><p class="muted small">${esc(e.message)}</p></div>`;
   }
 }
-
-function drawHeader() {
-  $("#bankPill").textContent = "⏳ " + (state.timeBank?.text ?? "");
-  $("#speedPill").textContent = state.speed + "x";
-  $("#title").textContent = state.running ? state.running.label : "Idle";
-}
-
+let lastView = "";
 function render() {
   if (!state) return;
+  const html = tab === "now" ? renderNow() : tab === "queue" ? renderQueue() : tab === "skills" ? (skill ? renderSkill() : renderSkills())
+             : tab === "bank" ? renderBank() : renderLog();
+  const key = tab + (skill?.id || "");
   const v = $("#view");
-  if (tab === "now") v.innerHTML = renderNow();
-  else if (tab === "queue") v.innerHTML = renderQueue();
-  else if (tab === "skills") v.innerHTML = skill ? renderSkill() : renderSkills();
-  else if (tab === "bank") v.innerHTML = renderBank();
-  else if (tab === "log") v.innerHTML = renderLog();
+  if (v.innerHTML !== html) { v.innerHTML = html; if (key !== lastView) v.firstElementChild?.classList.add("fade"); }
+  lastView = key;
 }
 
-// ---- now ---------------------------------------------------------------------------------------
+// ---- live action progress (animated between polls) ------------------------------------------
+function liveProgress() {
+  const r = state?.running;
+  if (!r || r.interval == null || r.progress == null) return null;
+  const elapsed = (performance.now() - stateAt) * (state.speed || 1);
+  return (r.progress + elapsed / r.interval) % 1;
+}
+(function frame() {
+  const r = state?.running;
+  // Faster than ~0.6s per action a refilling bar only flickers: show a steady moving shimmer instead.
+  const fast = r && r.interval != null && r.interval / (state.speed || 1) < 600;
+  const p = fast ? 1 : liveProgress();
+  const w = p == null ? "0%" : (p * 100).toFixed(2) + "%";
+  for (const el of [$("#livebar"), $("#heroBar")]) if (el) { el.style.width = w; el.classList.toggle("fast", !!fast); }
+  requestAnimationFrame(frame);
+})();
+
+// ---- now -------------------------------------------------------------------------------------
 function renderNow() {
   const r = state.running, q = state.queue;
-  let h = `<div class="card"><h2>Current action</h2>`;
+  let h = "";
   if (r) {
-    h += `<div class="row">${icon(r.icon)}<div class="grow"><div class="big ellip">${esc(r.label)}</div>
-      <div class="small green">${esc(r.rule)}${r.eta && r.eta !== "no end" ? " · " + esc(r.eta) + " left" : ""}</div></div></div>`;
-    if (r.level) h += `<div class="small muted" style="margin-top:8px">Level ${r.level.level} · ${fmt(r.level.xp)} / ${fmt(r.level.next)} XP</div>
-      <div class="bar"><i style="width:${(r.level.pct * 100).toFixed(1)}%"></i></div>`;
-    h += `<div class="btns" style="margin-top:12px"><button class="btn danger" data-do="stop">Stop</button>`;
-    if (q.entries.length) h += `<button class="btn gold" data-do="bump">Start next now</button>`;
-    h += `</div>`;
+    const lv = r.level, [sk, ...rest] = r.label.split(": ");
+    const secs = r.interval ? (r.interval / 1000 / (state.speed || 1)) : null;
+    h += `<div class="card hero">
+      <div class="row">
+        <div class="ring">${lv ? ring(lv.pct, 84, 6) : ""}${icon(r.icon, "lg")}${lv ? `<span class="lv">Lv ${lv.level}</span>` : ""}</div>
+        <div class="grow"><div class="skill">${esc(sk)}</div><div class="name clamp2">${esc(rest.join(": ") || sk)}</div>
+          <div class="chips"><span class="chip ${/until it stops/i.test(r.rule) ? "" : "gold"}">${esc(r.rule)}</span>${r.eta && r.eta !== "no end" ? `<span class="chip">${esc(r.eta)} left</span>` : ""}</div></div>
+      </div>
+      <div style="margin-top:14px" class="row small muted"><span class="grow">Action${secs ? ` · ${secs < 10 ? secs.toFixed(1) : Math.round(secs)}s each` : ""}</span>${r.actions ? `<span>${fmt(r.actions)} done</span>` : ""}</div>
+      <div class="bar" style="margin-top:6px"><i id="heroBar"></i></div>
+      ${lv ? `<div class="row small muted" style="margin-top:10px"><span class="grow">Level ${lv.level} → ${lv.level + 1}</span><span>${fmt(lv.next - lv.xp)} XP to go</span></div>
+        <div class="bar xp" style="margin-top:6px"><i style="width:${(lv.pct * 100).toFixed(1)}%"></i></div>` : ""}
+      <div class="stats">
+        <div class="stat"><b>${r.xpHour ? short(r.xpHour) : "–"}</b><span>XP / hr</span></div>
+        <div class="stat"><b>${r.itemsHour ? short(r.itemsHour) : "–"}</b><span>Items / hr</span></div>
+        <div class="stat"><b>${lv ? (lv.pct * 100).toFixed(1) + "%" : "–"}</b><span>To level</span></div>
+      </div>
+      <div class="btns" style="margin-top:14px"><button class="btn red" data-do="stop">${svg("stop")}Stop</button>
+        ${q.entries.length ? `<button class="btn gold" data-do="bump">${svg("next")}Start next</button>` : ""}</div>
+    </div>`;
   } else {
-    h += `<div class="muted">Nothing is running.</div>`;
-    if (q.entries.length) h += `<div class="btns" style="margin-top:12px"><button class="btn primary" data-do="qstart">Start the queue (${q.entries.length})</button></div>`;
+    h += `<div class="card hero"><div class="row"><div class="ring">${ring(0, 84, 6)}</div><div class="grow"><div class="skill">Idle</div><div class="name">Nothing is running</div>
+      <div class="muted small">${q.entries.length ? `${q.entries.length} queued` : "Pick something in Skills"}</div></div></div>
+      ${q.entries.length ? `<button class="btn gold block" style="margin-top:14px" data-do="qstart">${svg("play")}Start the queue</button>`
+                          : `<button class="btn block" style="margin-top:14px" data-tabgo="skills">Choose an action</button>`}</div>`;
   }
-  h += `</div>`;
 
   if (q.entries.length) {
-    h += `<div class="card"><h2>Up next</h2><div class="list">` + q.entries.slice(0, 3).map(e =>
-      `<div class="item">${iconSm(e.icon)}<div class="grow ellip">${esc(e.label)}</div><span class="small muted">${esc(e.eta)}</span></div>`).join("") +
-      `</div>${q.entries.length > 3 ? `<div class="small muted" style="margin-top:6px">+${q.entries.length - 3} more${q.total ? " · whole queue " + esc(q.total) : ""}</div>` : ""}</div>`;
+    h += `<h3>Up next<button class="more" data-tabgo="queue">Queue (${q.entries.length}) ›</button></h3><div class="card list">` +
+      q.entries.slice(0, 3).map((e, i) => `<div class="li">${icon(e.icon, "sm")}<div class="grow small clamp2">${esc(e.label)}</div>${e.eta && e.eta !== "no end" ? `<span class="tiny muted">${esc(e.eta)}</span>` : ""}</div>`).join("") + `</div>`;
   }
 
-  h += `<div class="card"><h2>Time bank</h2><div class="big">${esc(state.timeBank.text)}</div>
-    <div class="small muted">At ${state.speed}x, each banked hour runs ${state.speed} hours of game time</div>
-    <div class="btns" style="margin-top:12px">${[15, 60, 240].map(m => `<button class="btn" data-skip="${m}">${m < 60 ? m + "m" : m / 60 + "h"}</button>`).join("")}
-    <button class="btn" data-skip="all">All</button></div></div>`;
+  const bankH = state.timeBank.ms / 3600000;
+  h += `<h3>Time bank</h3><div class="card">
+    <div class="row"><div class="grow"><div style="font-size:26px;font-weight:800" class="gold">${esc(state.timeBank.text)}</div>
+      <div class="small muted">= ${(bankH * state.speed).toFixed(1)}h of game time at ${state.speed}x</div></div>${svg("hour", 'style="width:34px;height:34px;color:#6a5222"')}</div>
+    <div class="btns" style="margin-top:12px">${[15, 60, 240].map(m => `<button class="btn sm" data-skip="${m}">${m < 60 ? m + "m" : m / 60 + "h"}</button>`).join("")}
+      <button class="btn sm gold" data-skip="all">All</button></div>
+    <div class="small muted" style="margin:14px 2px 6px">Game speed</div>
+    <div class="seg">${(state.speedPresets || [1, 2, 3, 5, 10]).map(s => `<button class="${s === state.speed ? "on" : ""}" data-speed="${s}">${s}x</button>`).join("")}</div>
+  </div>`;
 
-  h += `<div class="card"><h2>Speed</h2><div class="btns">${(state.speedPresets || [1, 2, 3, 5, 10]).map(s =>
-    `<button class="chip ${s === state.speed ? "on" : ""}" data-speed="${s}">${s}x</button>`).join("")}</div></div>`;
-
-  h += `<div class="card"><h2>Wallet & bank</h2><div class="btns">` +
-    (state.currencies || []).map(c => `<span class="row small">${iconSm(c.icon)}${short(c.quantity)} ${esc(c.name)}</span>`).join("") +
-    (state.bank ? `<span class="row small">Bank ${state.bank.used} / ${state.bank.max} slots</span>` : "") + `</div></div>`;
+  const b = state.bank;
+  h += `<h3>Wallet</h3><div class="card"><div class="row" style="flex-wrap:wrap;gap:16px">` +
+    (state.currencies || []).map(c => `<div class="row" style="gap:6px">${icon(c.icon, "sm")}<b>${short(c.quantity)}</b></div>`).join("") +
+    (b ? `<div class="grow" style="min-width:140px"><div class="row small"><span class="grow muted">Bank</span><span>${b.used} / ${b.max}</span></div>
+      <div class="bar" style="margin-top:5px"><i style="width:${Math.min(100, b.used / b.max * 100)}%;${b.used / b.max > .9 ? "background:var(--red)" : ""}"></i></div></div>` : "") + `</div></div>`;
   return h;
 }
 
-// ---- queue -------------------------------------------------------------------------------------
+// ---- queue -----------------------------------------------------------------------------------
 function renderQueue() {
   const q = state.queue;
-  let h = `<div class="card"><h2>Queue</h2>
-    <label class="switch"><span>Run queue</span><input type="checkbox" data-qtoggle="enabled" ${q.enabled ? "checked" : ""}></label>
-    <label class="switch"><span>Loop</span><input type="checkbox" data-qtoggle="loop" ${q.loop ? "checked" : ""}></label>
-    <label class="switch"><span>Queue mode <span class="small muted">(clicks in the game queue instead)</span></span><input type="checkbox" data-qtoggle="mode" ${q.modeOn ? "checked" : ""}></label>
-    ${q.total ? `<div class="small green">Whole queue: ${esc(q.total)}</div>` : ""}</div>`;
-  h += `<div class="card"><h2>Entries (${q.entries.length})</h2>`;
-  if (!q.entries.length) h += `<div class="empty">The queue is empty. Add actions from Skills.</div>`;
-  else h += `<div class="list">` + q.entries.map((e, i) => `<div class="item qrow">
-      <span class="num">${i + 1}</span>${iconSm(e.icon)}<div class="grow"><div class="label">${esc(e.label)}</div>${e.eta ? `<div class="small muted">${esc(e.eta)}</div>` : ""}</div>
-      ${i === 0 ? `<button class="iconbtn" title="Start now" data-q="bump">${svg('<path d="M8 5l10 7-10 7z"/>')}</button>`
-               : `<button class="iconbtn" title="Up" data-q="up" data-i="${i}">${svg('<path d="M6 15l6-6 6 6"/>')}</button>`}
-      ${i < q.entries.length - 1 ? `<button class="iconbtn" title="Down" data-q="down" data-i="${i}">${svg('<path d="M6 9l6 6 6-6"/>')}</button>` : `<span style="width:36px;flex:none"></span>`}
-      <button class="iconbtn" title="Remove" data-q="remove" data-i="${i}">${svg('<path d="M6 6l12 12M18 6L6 18"/>')}</button></div>`).join("") + `</div>`;
-  h += `<div class="btns" style="margin-top:12px">${!state.running && q.entries.length ? `<button class="btn primary" data-do="qstart">Start</button>` : ""}
-    ${q.entries.length ? `<button class="btn danger" data-do="qclear">Clear</button>` : ""}</div></div>`;
-  h += `<div class="card"><h2>Saved queues</h2>
-    <div class="row"><select id="preset" class="grow">${(q.presets || []).map(p => `<option>${esc(p)}</option>`).join("") || "<option value=''>None saved</option>"}</select>
-      <button class="btn sm" data-do="pload">Load</button><button class="btn sm" data-do="pdel">Delete</button></div>
-    <div class="row" style="margin-top:8px"><input type="text" id="pname" placeholder="Name this queue" class="grow"><button class="btn sm" data-do="psave">Save</button></div></div>`;
+  let h = `<div class="card">
+    <label class="switch"><div class="grow"><b>Run queue</b><div class="tiny muted">Start the next entry when one finishes</div></div><input type="checkbox" data-qtoggle="enabled" ${q.enabled ? "checked" : ""}></label>
+    <label class="switch"><div class="grow"><b>Loop</b><div class="tiny muted">Entries go back on the end when they start</div></div><input type="checkbox" data-qtoggle="loop" ${q.loop ? "checked" : ""}></label>
+    <label class="switch"><div class="grow"><b>Queue mode</b><div class="tiny muted">Clicking an action in the game queues it instead</div></div><input type="checkbox" data-qtoggle="mode" ${q.modeOn ? "checked" : ""}></label>
+  </div>`;
+  h += `<h3>${q.entries.length} queued${q.total ? `<span class="more" style="color:var(--muted)">${esc(q.total)}</span>` : ""}</h3>`;
+  if (!q.entries.length) h += `<div class="card empty">The queue is empty.<br><button class="btn sm" style="margin-top:12px" data-tabgo="skills">Add from Skills</button></div>`;
+  else h += `<div id="qlist">` + q.entries.map((e, i) => `<div class="qitem ${i === 0 ? "first" : ""}" data-qi="${i}">
+      <span class="handle" data-handle="${i}">${svg("grip")}</span><span class="qnum">${i + 1}</span>${icon(e.icon, "sm")}
+      <div class="grow"><div class="small clamp2">${esc(e.label)}</div>${e.eta ? `<div class="tiny muted">${esc(e.eta)}</div>` : ""}</div>
+      ${i === 0 ? `<button class="iconbtn gold" title="Start now" data-q="bump">${svg("play")}</button>` : ""}
+      <button class="iconbtn" title="Remove" data-q="remove" data-i="${i}">${svg("x")}</button></div>`).join("") + `</div>
+    <div class="btns" style="margin-top:12px">${!state.running ? `<button class="btn gold" data-do="qstart">${svg("play")}Start</button>` : ""}<button class="btn ghost" data-do="qclear">Clear all</button></div>`;
+  h += `<h3>Saved queues</h3><div class="card">
+    <div class="row"><select id="preset" class="grow">${(q.presets || []).map(p => `<option>${esc(p)}</option>`).join("") || "<option value=''>None saved yet</option>"}</select>
+      <button class="btn sm" data-do="pload">Load</button><button class="btn sm ghost" data-do="pdel">${svg("x")}</button></div>
+    <div class="row" style="margin-top:8px"><input type="text" id="pname" placeholder="Save this queue as…" class="grow"><button class="btn sm gold" data-do="psave">Save</button></div></div>`;
   return h;
 }
 
-// ---- skills ------------------------------------------------------------------------------------
+// drag to reorder (pointer events on the handle)
+let dragging = null;
+document.addEventListener("pointerdown", e => {
+  const hnd = e.target.closest("[data-handle]"); if (!hnd) return;
+  e.preventDefault();
+  const from = Number(hnd.dataset.handle), item = hnd.closest(".qitem");
+  dragging = { from, to: from, item, id: e.pointerId };
+  item.classList.add("dragging"); hnd.setPointerCapture(e.pointerId); buzz();
+});
+document.addEventListener("pointermove", e => {
+  if (!dragging || e.pointerId !== dragging.id) return;
+  const items = [...document.querySelectorAll(".qitem")];
+  items.forEach(x => x.classList.remove("over-up", "over-down"));
+  let to = dragging.from;
+  for (const [i, el] of items.entries()) { const r = el.getBoundingClientRect(); if (e.clientY >= r.top && e.clientY <= r.bottom) { to = i; break; } }
+  dragging.to = to;
+  if (to !== dragging.from) items[to].classList.add(to < dragging.from ? "over-up" : "over-down");
+});
+document.addEventListener("pointerup", e => {
+  if (!dragging || e.pointerId !== dragging.id) return;
+  const { from, to } = dragging; dragging = null;
+  document.querySelectorAll(".qitem").forEach(x => x.classList.remove("over-up", "over-down", "dragging"));
+  if (to !== from) act("queue", { op: "move", i: from, to });
+});
+
+// ---- skills ----------------------------------------------------------------------------------
 function renderSkills() {
-  return `<div class="grid">` + state.skills.filter(s => s.startable).map(s => `<button class="tile ${s.active ? "active" : ""}" data-skill="${esc(s.id)}">
-    ${icon(s.icon)}<div class="grow"><div class="ellip">${esc(s.name)}</div>${s.xp ? `<div class="small muted">Lv ${s.xp.level}${s.xp.cap ? " / " + s.xp.cap : ""}</div>
-    <div class="bar"><i style="width:${(s.xp.pct * 100).toFixed(1)}%"></i></div>` : `<div class="small muted">Areas & dungeons</div>`}</div></button>`).join("") + `</div>`;
+  const list = state.skills.filter(s => s.startable);
+  const total = state.skills.reduce((a, s) => a + (s.xp?.level || 0), 0);
+  return `<div class="row" style="margin:2px 4px 12px"><span class="grow muted small">Total level</span><b class="gold">${fmt(total)}</b></div><div class="sgrid">` +
+    list.map(s => `<button class="stile ${s.active ? "active" : ""}" data-skill="${esc(s.id)}">
+      <div class="mini">${s.xp ? ring(s.xp.pct, 54, 4) : ""}${icon(s.icon)}</div>
+      <div class="nm">${esc(s.name)}</div><div class="lvl">${s.xp ? `Lv ${s.xp.level}` : "Areas"}</div></button>`).join("") + `</div>`;
 }
 
 function renderSkill() {
-  const s = skill;
-  let h = `<button class="back" data-do="skills">‹ Skills</button>
-    <div class="card"><div class="row">${icon(s.icon)}<div class="grow"><div class="big">${esc(s.name)}</div>
-    ${s.level ? `<div class="small muted">Level ${s.level.level} · ${fmt(s.level.xp)} / ${fmt(s.level.next)} XP</div><div class="bar"><i style="width:${(s.level.pct * 100).toFixed(1)}%"></i></div>` : ""}</div></div></div>`;
-  if (!s.groups.length) h += `<div class="empty">Nothing to start in this skill from here.</div>`;
+  const s = skill, lv = s.level;
+  let h = `<button class="btn sm ghost" style="margin:-4px 0 10px" data-do="skills">${svg("back")}Skills</button>
+    <div class="card hero"><div class="row"><div class="ring">${lv ? ring(lv.pct, 84, 6) : ""}${icon(s.icon, "lg")}${lv ? `<span class="lv">Lv ${lv.level}</span>` : ""}</div>
+      <div class="grow"><div class="name">${esc(s.name)}</div>${lv ? `<div class="small muted">${fmt(lv.next - lv.xp)} XP to level ${lv.level + 1}</div>
+      <div class="bar xp" style="margin-top:8px"><i style="width:${(lv.pct * 100).toFixed(1)}%"></i></div>` : ""}</div></div></div>`;
+  if (!s.groups.length) h += `<div class="card empty" style="margin-top:12px">Nothing to start in this skill from here.</div>`;
   for (const g of s.groups) {
-    h += `<div class="card"><h2>${esc(g.name)}</h2><div class="list">` + g.targets.map(t =>
-      `<button class="item ${t.unlocked ? "" : "locked"}" data-target="${esc(JSON.stringify({ ids: t.ids, name: t.name, unlocked: t.unlocked, needs: t.needs }))}">
-        ${icon(t.icon)}<div class="grow"><div class="ellip">${esc(t.name)}</div>
-        ${t.unlocked ? (t.detail ? `<div class="small muted">${esc(t.detail)}</div>` : "") : `<div class="small red">Locked: ${esc(t.needs || "not available yet")}</div>`}</div></button>`).join("") + `</div></div>`;
+    h += `<h3>${esc(g.name)}</h3><div class="tgrid">` + g.targets.map(t => `<button class="tcard ${t.unlocked ? "" : "locked"}"
+        data-target="${esc(JSON.stringify({ ids: t.ids, name: t.name, unlocked: t.unlocked, needs: t.needs }))}">
+        ${icon(t.icon)}<div class="grow"><div class="small" style="font-weight:700">${esc(t.name)}</div>
+        ${t.unlocked ? (t.detail ? `<div class="tiny muted clamp2">${esc(t.detail)}</div>` : (t.level ? `<span class="badge">Lv ${t.level}</span>` : ""))
+                     : `<div class="tiny red clamp2">${svg("lock", 'style="width:11px;height:11px;vertical-align:-1px"')} ${esc(t.needs || "Locked")}</div>`}</div></button>`).join("") + `</div>`;
   }
   return h;
 }
 
-// ---- stop condition sheet ----------------------------------------------------------------------
+// ---- stop condition sheet --------------------------------------------------------------------
 async function openTarget(t) {
   if (!t.unlocked) { toast("Locked: " + (t.needs || "not available yet"), true); return; }
   sheetTarget = { entity: skill.id, ids: t.ids, label: `${skill.name}: ${t.name}` };
   let o;
   try { o = await api(`options?entity=${encodeURIComponent(skill.id)}&ids=${encodeURIComponent(t.ids.join(","))}&label=${encodeURIComponent(sheetTarget.label)}`); }
   catch (e) { toast(e.message, true); return; }
-  let h = `<div class="handle"></div><div class="big gold" style="margin-bottom:4px">${esc(t.name)}</div>
-    <div class="small muted" style="margin-bottom:12px">When should it stop?</div>
-    <div class="seg"><button data-mode="queue" class="${sheetMode === "queue" ? "on" : ""}">Add to queue</button><button data-mode="start" class="${sheetMode === "start" ? "on" : ""}">Start now</button></div>
-    <button class="opt" data-pick="None"><b>Until it stops</b><span class="small muted grow">${esc(o.stopsNote)}</span></button>`;
+  let h = `<div class="grab"></div><div class="row" style="margin-bottom:12px"><div class="grow"><div class="tiny gold" style="letter-spacing:.12em;text-transform:uppercase;font-weight:800">${esc(skill.name)}</div>
+      <div style="font-size:19px;font-weight:800">${esc(t.name)}</div><div class="small muted">When should it stop?</div></div></div>
+    <div class="seg" style="margin-bottom:12px"><button data-mode="queue" class="${sheetMode === "queue" ? "on" : ""}">Add to queue</button><button data-mode="start" class="${sheetMode === "start" ? "on" : ""}">Start now</button></div>
+    <button class="opt" data-pick="None"><b>Until stops</b><span class="small muted grow">${esc(o.stopsNote)}</span></button>`;
   for (const m of o.milestones || [])
     h += `<button class="opt" data-pick="Level" data-value="${m.level}"><b>Level ${m.level}</b><span class="small muted grow">${esc(m.reason)}</span></button>`;
   if (o.level != null && o.level < o.cap)
-    h += `<div class="opt"><b>Level</b><input type="number" id="lvl" min="${o.level + 1}" max="${o.cap}" value="${o.nextMilestone}" style="width:90px">
-      <span class="small muted grow">now ${o.level}</span><button class="btn sm gold" data-pick="Level" data-input="lvl">Go</button></div>`;
+    h += `<div class="opt"><b>Level</b><input type="number" id="lvl" min="${o.level + 1}" max="${o.cap}" value="${o.nextMilestone}" style="width:84px">
+      <span class="tiny muted grow">now ${o.level}</span><button class="btn sm gold" data-pick="Level" data-input="lvl">Go</button></div>`;
   if (o.items)
-    h += `<div class="opt"><b>Items</b><input type="number" id="items" min="1" value="${store("items") || 100}" style="width:110px">
+    h += `<div class="opt"><b>Items</b><input type="number" id="items" min="1" value="${store("items") || 100}" style="width:104px">
       <span class="grow"></span><button class="btn sm gold" data-pick="Items" data-input="items">Go</button></div>`;
   if (o.nodes)
     h += `<button class="opt" data-pick="Nodes"><b>All nodes</b><span class="small muted grow">${esc(o.nodes.ready ? "every node can already be unlocked" : o.nodes.progress)}${o.nodes.eta && !o.nodes.ready ? " (" + esc(o.nodes.eta) + ")" : ""}</span></button>`;
-  h += `<button class="btn" style="width:100%;margin-top:4px" data-do="close">Cancel</button>`;
+  h += `<button class="btn ghost block" style="margin-top:4px" data-do="close">Cancel</button>`;
   openSheet(h);
 }
-
-function openSheet(html) {
-  $("#sheet").innerHTML = html; sheetOpen = true;
-  $("#sheetBg").style.display = "block"; requestAnimationFrame(() => $("#sheet").classList.add("open"));
-}
-/** A yes/cancel question in the bottom sheet (no browser dialogs). */
-let askYes = null;
-function ask(question, yes, onYes) {
+function openSheet(html) { $("#sheet").innerHTML = html; sheetOn = true; $("#scrim").classList.add("on"); $("#sheet").classList.add("on"); }
+function closeSheet() { sheetOn = false; $("#scrim").classList.remove("on"); $("#sheet").classList.remove("on"); render(); }
+function ask(question, yes, onYes, danger = true) {
   askYes = onYes;
-  openSheet(`<div class="handle"></div><div class="big" style="margin-bottom:14px">${esc(question)}</div>
-    <button class="btn danger" style="width:100%;margin-bottom:8px" data-do="askyes">${esc(yes)}</button>
-    <button class="btn" style="width:100%" data-do="close">Cancel</button>`);
+  openSheet(`<div class="grab"></div><div style="font-size:18px;font-weight:800;margin-bottom:16px">${esc(question)}</div>
+    <button class="btn ${danger ? "red" : "gold"} block" style="margin-bottom:8px" data-do="askyes">${esc(yes)}</button><button class="btn ghost block" data-do="close">Cancel</button>`);
 }
-
-function closeSheet() {
-  sheetOpen = false; $("#sheet").classList.remove("open"); $("#sheetBg").style.display = "none"; render();
-}
-$("#sheetBg").addEventListener("click", closeSheet);
-
+$("#scrim").addEventListener("click", closeSheet);
 $("#sheet").addEventListener("click", async e => {
   const mode = e.target.closest("[data-mode]");
-  if (mode) {
-    sheetMode = mode.dataset.mode; store("mode", sheetMode);
-    $("#sheet").querySelectorAll("[data-mode]").forEach(b => b.classList.toggle("on", b === mode));
-    return;
-  }
+  if (mode) { sheetMode = mode.dataset.mode; store("mode", sheetMode); $("#sheet").querySelectorAll("[data-mode]").forEach(b => b.classList.toggle("on", b === mode)); return; }
   const pick = e.target.closest("[data-pick]");
   if (pick && sheetTarget) {
     let value = Number(pick.dataset.value || 0);
     if (pick.dataset.input) { value = Number($("#" + pick.dataset.input).value); if (pick.dataset.input === "items") store("items", value); }
     const body = { ...sheetTarget, stop: pick.dataset.pick, value, mode: sheetMode };
-    closeSheet();
-    await act("action", body);
-    return;
+    closeSheet(); await act("action", body); return;
   }
-  const d = e.target.closest("[data-do]");
-  if (!d) return;
+  const d = e.target.closest("[data-do]"); if (!d) return;
   if (d.dataset.do === "close") closeSheet();
   if (d.dataset.do === "askyes") { const f = askYes; askYes = null; closeSheet(); if (f) await f(); }
   if (d.dataset.do === "sell" || d.dataset.do === "sellall") {
-    const it = JSON.parse(d.dataset.item);
-    const qty = d.dataset.do === "sellall" ? it.qty : Number($("#sellqty").value);
-    closeSheet();
-    await act("sell", { id: it.id, qty });
+    const it = JSON.parse(d.dataset.item), qty = d.dataset.do === "sellall" ? it.qty : Number($("#sellqty").value);
+    closeSheet(); await act("sell", { id: it.id, qty });
   }
   if (d.dataset.do === "skipgo") { const m = Number(d.dataset.minutes); closeSheet(); await act("skip", { minutes: m }); }
 });
+$("#sheet").addEventListener("input", e => {
+  if (e.target.id !== "sellqty") return;
+  const it = JSON.parse(e.target.dataset.item), n = Math.max(0, Math.min(it.qty, Number(e.target.value) || 0));
+  $("#sellval").textContent = short(n * it.each);
+});
 
-// ---- bank --------------------------------------------------------------------------------------
+// ---- bank ------------------------------------------------------------------------------------
 function renderBank() {
-  if (!bank) return `<div class="empty">Loading…</div>`;
+  if (!bank) return `<div class="skel"></div>`;
   const items = bank.items.filter(i => !bankQuery || i.name.toLowerCase().includes(bankQuery.toLowerCase()));
   items.sort(bankSort === "value" ? (a, b) => b.value - a.value : bankSort === "qty" ? (a, b) => b.qty - a.qty : (a, b) => a.name.localeCompare(b.name));
   const total = bank.items.reduce((s, i) => s + i.value, 0);
-  return `<div class="sticky-search"><div class="row"><input type="search" id="bq" placeholder="Search ${bank.items.length} items" value="${esc(bankQuery)}" class="grow">
-      <select id="bs" style="width:110px"><option value="value" ${bankSort === "value" ? "selected" : ""}>Value</option>
-      <option value="qty" ${bankSort === "qty" ? "selected" : ""}>Amount</option><option value="name" ${bankSort === "name" ? "selected" : ""}>Name</option></select></div>
-      <div class="small muted" style="margin-top:6px">${bank.used} / ${bank.max} slots · worth ${short(total)}</div></div>
-    <div class="card"><div class="list">` + (items.map(i => `<button class="item" data-item="${esc(JSON.stringify(i))}">
-      ${icon(i.icon)}<div class="grow"><div class="ellip">${i.locked ? "🔒 " : ""}${esc(i.name)}</div><div class="small muted">${i.rule ? esc(i.rule) + " · " : ""}${short(i.each)} each</div></div>
-      <div style="text-align:right"><div>${fmt(i.qty)}</div><div class="small gold">${short(i.value)}</div></div></button>`).join("") || `<div class="empty">No items match.</div>`) + `</div></div>`;
+  return `<div class="card" style="margin-bottom:12px"><div class="row"><div class="grow"><div class="small muted">Bank value</div><div style="font-size:22px;font-weight:800" class="gold">${short(total)}</div></div>
+      <div style="text-align:right"><div class="small muted">Slots</div><b>${bank.used} / ${bank.max}</b></div></div>
+      <div class="bar" style="margin-top:10px"><i style="width:${Math.min(100, bank.used / bank.max * 100)}%"></i></div></div>
+    <div class="row" style="margin-bottom:10px"><input type="search" id="bq" placeholder="Search ${bank.items.length} items" value="${esc(bankQuery)}" class="grow"></div>
+    <div class="seg" style="margin-bottom:12px">${[["value", "Value"], ["qty", "Amount"], ["name", "Name"]].map(([k, l]) => `<button data-sort="${k}" class="${bankSort === k ? "on" : ""}">${l}</button>`).join("")}</div>
+    ${items.length ? `<div class="bgrid">` + items.map(i => `<button class="btile ${i.locked ? "locked" : ""} ${i.rule ? "rule" : ""}" data-item="${esc(JSON.stringify(i))}" title="${esc(i.name)}">
+      ${icon(i.icon)}<span class="q">${short(i.qty)}</span></button>`).join("") + `</div>` : `<div class="empty">No items match.</div>`}`;
 }
-
 function openItem(i) {
   const data = esc(JSON.stringify(i));
-  openSheet(`<div class="handle"></div><div class="row" style="margin-bottom:12px">${icon(i.icon)}<div class="grow"><div class="big">${esc(i.name)}</div>
-    <div class="small muted">${fmt(i.qty)} in bank · ${short(i.each)} each · ${short(i.value)} total</div></div></div>
-    ${i.locked ? `<div class="small red" style="margin-bottom:10px">Locked in the bank: unlock it in the game to sell.</div>` : `
-    <div class="row" style="margin-bottom:10px"><input type="number" id="sellqty" min="1" max="${i.qty}" value="${Math.max(1, i.qty - 1)}" class="grow">
-      <button class="btn gold" data-do="sell" data-item="${data}">Sell</button></div>
-    <button class="btn danger" style="width:100%;margin-bottom:8px" data-do="sellall" data-item="${data}">Sell all ${fmt(i.qty)} for ${short(i.value)}</button>`}
-    <button class="btn" style="width:100%" data-do="close">Close</button>`);
+  openSheet(`<div class="grab"></div><div class="row" style="margin-bottom:14px">${icon(i.icon, "lg")}<div class="grow"><div style="font-size:19px;font-weight:800">${esc(i.name)}</div>
+    <div class="small muted">${fmt(i.qty)} in bank · ${short(i.each)} each</div>${i.rule ? `<div class="tiny gold">Rule: ${esc(i.rule)}</div>` : ""}</div></div>
+    ${i.locked ? `<div class="card small red" style="margin-bottom:10px">Locked in the bank. Unlock it in the game to sell.</div>` : `
+    <div class="small muted" style="margin-bottom:6px">Sell</div>
+    <div class="row" style="margin-bottom:10px"><input type="number" id="sellqty" data-item="${data}" min="1" max="${i.qty}" value="${Math.max(1, i.qty - 1)}" class="grow">
+      <button class="btn gold" data-do="sell" data-item="${data}">Sell for <span id="sellval">${short(Math.max(1, i.qty - 1) * i.each)}</span></button></div>
+    <button class="btn red block" style="margin-bottom:8px" data-do="sellall" data-item="${data}">Sell all ${fmt(i.qty)} for ${short(i.value)}</button>`}
+    <button class="btn ghost block" data-do="close">Close</button>`);
 }
 
-// ---- drop log ----------------------------------------------------------------------------------
+// ---- drop log --------------------------------------------------------------------------------
 function renderLog() {
-  if (!droplog) return `<div class="empty">Loading…</div>`;
-  if (!droplog.length) return `<div class="empty">Nothing logged yet.</div>`;
-  return droplog.map(l => `<div class="card"><div class="row">${iconSm(l.icon)}<div class="grow"><div class="ellip ${l.current ? "gold" : ""}">${esc(l.label)}</div>
-    <div class="small muted">${fmt(l.actions)} actions · ${esc(l.time)} · ${fmt(l.xp)} XP</div></div></div>
-    ${l.items.length ? `<div class="btns" style="margin-top:8px">` + l.items.slice(0, 12).map(i => `<span class="row small" title="${esc(i.name)}">${iconSm(i.icon)}${short(i.qty)}</span>`).join("") + `</div>` : ""}</div>`).join("");
+  if (!droplog) return `<div class="skel"></div>`;
+  if (!droplog.length) return `<div class="card empty">Nothing logged yet.</div>`;
+  return droplog.map(l => `<div class="card" ${l.current ? 'style="border-color:#6a5222"' : ""}><div class="row">${icon(l.icon)}<div class="grow">
+      <div style="font-weight:700" class="${l.current ? "gold" : ""}">${esc(l.label)}</div>
+      <div class="tiny muted">${fmt(l.actions)} actions · ${esc(l.time)} · ${short(l.xp)} XP</div></div></div>
+    ${l.items.length ? `<div class="row" style="flex-wrap:wrap;gap:10px;margin-top:10px">` + l.items.slice(0, 14).map(i => `<span class="row" style="gap:4px" title="${esc(i.name)}">${icon(i.icon, "sm")}<span class="small">${short(i.qty)}</span></span>`).join("") + `</div>` : ""}</div>`).join("");
 }
 
-// ---- events ------------------------------------------------------------------------------------
+// ---- events ----------------------------------------------------------------------------------
 $("#view").addEventListener("click", async e => {
+  const go = e.target.closest("[data-tabgo]");
+  if (go) { tab = go.dataset.tabgo; store("tab", tab); skill = null; drawNav(); render(); load(); window.scrollTo({ top: 0 }); return; }
   const d = e.target.closest("[data-do]");
   if (d) {
     const x = d.dataset.do;
@@ -390,63 +522,48 @@ $("#view").addEventListener("click", async e => {
     if (x === "bump") return act("queue", { op: "bump" });
     if (x === "qstart") return act("queue", { op: "start" });
     if (x === "qclear") return ask("Clear the whole queue?", "Clear", () => act("queue", { op: "clear" }));
-    if (x === "skills") { skill = null; render(); window.scrollTo(0, 0); return; }
-    if (x === "pload") { const n = $("#preset").value; if (n) ask(`Replace the queue with "${n}"?`, "Load", () => act("queue", { op: "load", name: n })); return; }
+    if (x === "skills") { skill = null; render(); window.scrollTo({ top: 0 }); return; }
+    if (x === "pload") { const n = $("#preset").value; if (n) ask(`Replace the queue with "${n}"?`, "Load", () => act("queue", { op: "load", name: n }), false); return; }
     if (x === "pdel") { const n = $("#preset").value; if (n) ask(`Delete the saved queue "${n}"?`, "Delete", () => act("queue", { op: "delete", name: n })); return; }
     if (x === "psave") { const n = $("#pname").value.trim() || $("#preset").value; if (n) act("queue", { op: "save", name: n }); return; }
   }
   const q = e.target.closest("[data-q]");
   if (q) {
-    const i = Number(q.dataset.i);
     if (q.dataset.q === "bump") return act("queue", { op: "bump" });
-    if (q.dataset.q === "up") return act("queue", { op: "move", i, to: i - 1 });
-    if (q.dataset.q === "down") return act("queue", { op: "move", i, to: i + 1 });
-    if (q.dataset.q === "remove") return act("queue", { op: "remove", i });
+    if (q.dataset.q === "remove") return act("queue", { op: "remove", i: Number(q.dataset.i) });
   }
   const sk = e.target.closest("[data-skill]");
-  if (sk) {
-    try { skill = await api("skill?id=" + encodeURIComponent(sk.dataset.skill)); render(); window.scrollTo(0, 0); }
-    catch (err) { toast(err.message, true); }
-    return;
-  }
-  const t = e.target.closest("[data-target]");
-  if (t) return openTarget(JSON.parse(t.dataset.target));
-  const it = e.target.closest("[data-item]");
-  if (it) return openItem(JSON.parse(it.dataset.item));
-  const sp = e.target.closest("[data-speed]");
-  if (sp) return act("speed", { value: Number(sp.dataset.speed) });
-  const sk2 = e.target.closest("[data-skip]");
-  if (sk2) {
-    const minutes = sk2.dataset.skip === "all" ? Math.floor(state.timeBank.ms / 60000) : Number(sk2.dataset.skip);
+  if (sk) { try { skill = await api("skill?id=" + encodeURIComponent(sk.dataset.skill)); render(); window.scrollTo({ top: 0 }); } catch (err) { toast(err.message, true); } return; }
+  const t = e.target.closest("[data-target]"); if (t) return openTarget(JSON.parse(t.dataset.target));
+  const it = e.target.closest("[data-item]"); if (it) return openItem(JSON.parse(it.dataset.item));
+  const sp = e.target.closest("[data-speed]"); if (sp) return act("speed", { value: Number(sp.dataset.speed) });
+  const so = e.target.closest("[data-sort]"); if (so) { bankSort = so.dataset.sort; store("bankSort", bankSort); render(); return; }
+  const skp = e.target.closest("[data-skip]");
+  if (skp) {
+    const minutes = skp.dataset.skip === "all" ? Math.floor(state.timeBank.ms / 60000) : Number(skp.dataset.skip);
     if (minutes <= 0) return toast("No banked time", true);
     const len = minutes >= 60 ? (minutes / 60).toFixed(1).replace(".0", "") + "h" : minutes + "m";
-    openSheet(`<div class="handle"></div><div class="big gold">Skip ${len}?</div>
-      <p class="muted">Uses ${len} of banked time at ${state.speed}x: about ${(minutes * state.speed / 60).toFixed(1)}h of game time. The game catches up in the background.</p>
-      <button class="btn primary" style="width:100%;margin-bottom:8px" data-do="skipgo" data-minutes="${minutes}">Skip</button>
-      <button class="btn" style="width:100%" data-do="close">Cancel</button>`);
+    openSheet(`<div class="grab"></div><div style="font-size:19px;font-weight:800">Skip ${len}?</div>
+      <p class="muted">Uses ${len} of banked time at ${state.speed}x, about ${(minutes * state.speed / 60).toFixed(1)}h of game time. The game catches up in the background.</p>
+      <button class="btn gold block" style="margin-bottom:8px" data-do="skipgo" data-minutes="${minutes}">${svg("hour")}Skip ${len}</button><button class="btn ghost block" data-do="close">Cancel</button>`);
   }
 });
-
-$("#view").addEventListener("change", e => {
-  const t = e.target;
-  if (t.dataset.qtoggle) act("queue", { op: t.dataset.qtoggle, on: t.checked });
-  if (t.id === "bs") { bankSort = t.value; render(); }
-});
+$("#view").addEventListener("change", e => { const t = e.target; if (t.dataset.qtoggle) act("queue", { op: t.dataset.qtoggle, on: t.checked }); });
 $("#view").addEventListener("input", e => {
   if (e.target.id !== "bq") return;
-  bankQuery = e.target.value;
-  const pos = e.target.selectionStart;
-  render();
+  bankQuery = e.target.value; const pos = e.target.selectionStart; render();
   const el = $("#bq"); el.focus(); el.setSelectionRange(pos, pos);
 });
 
-// ---- polling -----------------------------------------------------------------------------------
+// ---- start + polling -------------------------------------------------------------------------
 drawNav();
 load();
 setInterval(() => {
-  if (document.hidden || sheetOpen) return;
+  if (document.hidden || sheetOn || dragging) return;
+  if (tab === "bank" && document.activeElement?.id === "bq") return;
   if (tab === "now" || tab === "queue" || (tab === "skills" && !skill)) load();
-}, 2500);
+  else api("state").then(s => { state = s; stateAt = performance.now(); drawAppbar(); }).catch(() => {});
+}, 2000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
 </script>
 </body>
