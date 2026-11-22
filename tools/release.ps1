@@ -13,7 +13,7 @@ param([switch]$Publish, [string]$Notes = '')
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path $PSScriptRoot -Parent
-$dotnet = if (Test-Path 'C:\Users\bruta\ClaudeTools\dotnet\dotnet.exe') { 'C:\Users\bruta\ClaudeTools\dotnet\dotnet.exe' } else { 'dotnet' }
+$dotnet = if ($env:DOTNET_EXE) { $env:DOTNET_EXE } else { 'dotnet' }   # set DOTNET_EXE if dotnet isn't on PATH
 $gh = if (Test-Path 'C:\Program Files\GitHub CLI\gh.exe') { 'C:\Program Files\GitHub CLI\gh.exe' } else { 'gh' }
 Set-Location $repoRoot
 
